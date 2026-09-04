@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NPM Settings Backup</title>
+<style>
+  :root { --bg:#0f1420; --panel:#1a2130; --border:#2a3346; --text:#dbe2ef; --muted:#8b96ad; --accent:#4f8cff; --green:#3ecf8e; --red:#ff6b6b; --amber:#ffb454; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui, sans-serif; }
+  .wrap { max-width:920px; margin:0 auto; padding:32px 20px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 28px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:20px; }
+  .card h2 { font-size:15px; margin:0 0 6px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  .card .desc { color:var(--muted); margin:0 0 16px; font-size:13px; }
+  button { border:0; border-radius:8px; padding:10px 18px; font-size:14px; font-weight:600; cursor:pointer; transition:filter .15s; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .primary { background:var(--accent); color:#fff; }
+  .danger { background:var(--red); color:#fff; }
+  .ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  .small { padding:6px 12px; font-size:13px; }
+  button:hover:not(:disabled) { filter:brightness(1.1); }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+  .status { margin-top:14px; padding:12px; border-radius:8px; font-size:13px; white-space:pre-wrap; word-break:break-word; display:none; }
+  .status.show { display:block; }
+  .status.ok { background:rgba(62,207,142,.1); border:1px solid rgba(62,207,142,.35); color:var(--green); }
+  .status.err { background:rgba(255,107,107,.1); border:1px solid rgba(255,107,107,.35); color:var(--red); }
+  .status.warn { background:rgba(255,180,84,.1); border:1px solid rgba(255,180,84,.35); color:var(--amber); }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--border); font-size:13px; }
+  th { color:var(--muted); font-weight:500; }
+  td.actions { white-space:nowrap; text-align:right; }
+  .empty { color:var(--muted); font-size:13px; padding:12px 0; }
+  input[type=file] { color:var(--muted); font-size:13px; }
+  .drop { border:1px dashed var(--border); border-radius:8px; padding:18px; text-align:center; cursor:pointer; }
+  .drop:hover { border-color:var(--accent); }
+  .drop input { display:none; }
+  .drop .hint { color:var(--muted); font-size:13px; }
+  .drop .fn { color:var(--text); font-weight:600; margin-top:6px; }
+  pre.log { background:#0b0f18; border:1px solid var(--border); border-radius:8px; padding:12px; font-size:12px; overflow:auto; max-height:280px; margin:10px 0 0; }
+  .count { color:var(--muted); font-size:12px; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; vertical-align:-2px; margin-right:8px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Nginx Proxy Manager — Settings Backup</h1>
+  <p class="sub">Companion tool: backups include the npm database, <code>/data</code> config and Let's Encrypt certificates.</p>
+  <!--CRON_NOTE-->
+
+  <!-- Backup -->
+  <div class="card">
+    <h2>Backup</h2>
+    <p class="desc">Create a full snapshot of your NPM settings. Backups are stored on the host in <code>./backups</code>.</p>
+    <button id="btn-backup" class="primary">Create backup now</button>
+    <div id="status-backup" class="status"></div>
+  </div>
+
+  <!-- Existing backups -->
+  <div class="card">
+    <h2>Existing backups</h2>
+    <table>
+      <thead><tr><th>File</th><th>Size</th><th>Created</th><th></th></tr></thead>
+      <tbody id="backups-body"></tbody>
+    </table>
+    <div id="backups-empty" class="empty">No backups yet.</div>
+  </div>
+
+  <!-- Import -->
+  <div class="card">
+    <h2>Import settings</h2>
+    <p class="desc">Restore from a backup archive (the format created above). This <b>overwrites</b> the current database, <code>/data</code> and certificates, then restarts NPM.</p>
+    <div class="drop" id="drop">
+      <input type="file" id="file" accept=".tar.gz,.tgz">
+      <div class="hint">Choose a backup archive (.tar.gz) or drop it here</div>
+      <div class="fn" id="file-name"></div>
+    </div>
+    <div style="margin-top:14px; display:flex; gap:10px;">
+      <button id="btn-upload" class="primary" disabled>Upload &amp; inspect</button>
+    </div>
+    <div id="status-import" class="status"></div>
+    <div id="confirm-box" style="display:none; margin-top:16px;">
+      <div class="status warn show">⚠️ This will replace your current NPM settings with the contents of this archive and restart Nginx Proxy Manager. This cannot be undone.</div>
+      <button id="btn-confirm" class="danger">Yes, restore these settings</button>
+      <button id="btn-cancel" class="ghost" style="margin-left:10px;">Cancel</button>
+    </div>
+    <pre class="log" id="log" style="display:none"></pre>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let pendingArchive = null;
+
+function status(id, text, kind) {
+  const el = $(id);
+  el.className = 'status show ' + (kind || 'ok');
+  el.textContent = text;
+}
+
+async function jsonFetch(url, opts) {
+  const res = await fetch(url, opts);
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* non-JSON */ }
+  if (!res.ok || (data && data.ok === false)) {
+    throw new Error((data && data.error) || ('HTTP ' + res.status));
+  }
+  return data;
+}
+
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  const u = ['KB', 'MB', 'GB'];
+  let i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+  return n.toFixed(1) + ' ' + u[i];
+}
+
+/* ---- backups list ---- */
+async function refreshBackups() {
+  const data = await jsonFetch('/api/backups');
+  const body = $('backups-body');
+  body.innerHTML = '';
+  $('backups-empty').style.display = data.backups.length ? 'none' : 'block';
+  for (const b of data.backups) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${b.name}</td><td>${fmtSize(b.size)}</td><td>${b.mtime}</td>
+      <td class="actions">
+        <a href="/download?name=${encodeURIComponent(b.name)}"><button class="ghost small">Download</button></a>
+        <button class="ghost small danger" data-del="${b.name}">Delete</button>
+      </td>`;
+    body.appendChild(tr);
+  }
+  body.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm(`Delete backup ${btn.dataset.del}?`)) return;
+      try {
+        await jsonFetch('/api/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: btn.dataset.del}) });
+        refreshBackups();
+      } catch (e) { status('status-backup', 'Delete failed: ' + e.message, 'err'); }
+    });
+  });
+}
+
+/* ---- backup ---- */
+$('btn-backup').addEventListener('click', async () => {
+  const btn = $('btn-backup');
+  btn.disabled = true;
+  status('status-backup', 'Creating backup…', 'ok');
+  try {
+    const data = await jsonFetch('/api/backup', { method: 'POST' });
+    status('status-backup', 'Backup created: ' + (data.name || '') + '\nYou can download it below.', 'ok');
+    refreshBackups();
+  } catch (e) {
+    status('status-backup', 'Backup failed: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ---- import ---- */
+const fileInput = $('file');
+$('drop').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  $('file-name').textContent = fileInput.files[0] ? fileInput.files[0].name : '';
+  $('btn-upload').disabled = !fileInput.files[0];
+});
+$('drop').addEventListener('dragover', e => { e.preventDefault(); });
+$('drop').addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer.files.length) {
+    fileInput.files = e.dataTransfer.files;
+    fileInput.dispatchEvent(new Event('change'));
+  }
+});
+
+$('btn-upload').addEventListener('click', async () => {
+  const f = fileInput.files[0];
+  if (!f) return;
+  const btn = $('btn-upload');
+  btn.disabled = true;
+  status('status-import', 'Uploading and inspecting archive…', 'ok');
+  const fd = new FormData();
+  fd.append('file', f);
+  try {
+    const data = await jsonFetch('/api/import', { method: 'POST', body: fd });
+    pendingArchive = data.pending;
+    status('status-import',
+      `Archive "${data.filename}" (${fmtSize(data.size)}) is a valid settings backup.\n` +
+      `Contents preview:\n` + data.entries.slice(0, 12).join('\n') +
+      (data.entries.length > 12 ? `\n…and ${data.entries.length - 12} more entries` : ''),
+      'ok');
+    $('confirm-box').style.display = 'block';
+  } catch (e) {
+    pendingArchive = null;
+    $('confirm-box').style.display = 'none';
+    status('status-import', 'Import rejected: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$('btn-confirm').addEventListener('click', async () => {
+  if (!pendingArchive) return;
+  $('btn-confirm').disabled = true;
+  $('log').style.display = 'block';
+  $('log').textContent = 'Restoring — NPM will restart automatically…';
+  status('status-import', 'Restoring settings…', 'warn');
+  try {
+    const res = await fetch('/api/import/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pending: pendingArchive })
+    });
+    const data = await res.json();
+    $('log').textContent = data.output || '';
+    if (data.ok) {
+      status('status-import', '✅ Import complete — settings restored and NPM restarted.', 'ok');
+      $('confirm-box').style.display = 'none';
+      fileInput.value = '';
+      $('file-name').textContent = '';
+    } else {
+      status('status-import', 'Import failed — see log below. NPM was restarted to its previous state.', 'err');
+    }
+    refreshBackups();
+  } catch (e) {
+    $('log').textContent = 'Request failed: ' + e.message;
+    status('status-import', 'Import failed: ' + e.message, 'err');
+  } finally {
+    pendingArchive = null;
+    $('btn-confirm').disabled = false;
+  }
+});
+
+$('btn-cancel').addEventListener('click', () => {
+  pendingArchive = null;
+  $('confirm-box').style.display = 'none';
+  status('status-import', 'Import cancelled.', 'warn');
+});
+
+refreshBackups().catch(() => {});
+</script>
+</body>
+</html>

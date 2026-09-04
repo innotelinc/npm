@@ -88,6 +88,28 @@ Sometimes this can take a little bit because of the entropy of keys.
 [http://127.0.0.1:81](http://127.0.0.1:81)
 
 
+## Settings Backup UI (`backup-ui`)
+
+This fork ships with a companion tool for backing up and restoring NPM settings
+(database, `/data` config and Let's Encrypt certificates). It runs as a small
+container with a web UI on port `82`:
+
+- One-click full backup (database dump + `/data` + certificates) stored on the host
+- Automatic nightly backups with rolling retention (configurable via `CRON_SCHEDULE`
+  and `BACKUP_RETENTION`)
+- Upload and restore a previous backup (stops NPM, restores, restarts)
+
+### Quick start
+
+```bash
+cp .env.example .env   # then set the DB passwords
+# optional: set BACKUP_UI_USER / BACKUP_UI_PASSWORD in .env to protect the backup UI
+docker compose up -d --build
+```
+
+The backup UI is then available at http://127.0.0.1:82. See the [docker-compose.yml](docker-compose.yml)
+for all available settings, or use the standalone compose service in a stack of your own.
+
 ## Contributing
 
 All are welcome to create pull requests for this project, against the `develop` branch. Official releases are created from the `master` branch.
