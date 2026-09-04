@@ -10,3 +10,10 @@ docker/dev/dnsrouter-config.json.tmp
 docker/dev/resolv.conf
 .claude
 
+# Runtime data for the root docker-compose.yml (NPM stack)
+/data
+/letsencrypt
+/mysql
+/backups
+.env
+

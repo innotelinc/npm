@@ -1,0 +1,67 @@
+# Nginx Proxy Manager stack with the backup-ui companion tool.
+# Copy .env.example to .env and fill in the passwords before running
+# `docker compose up -d --build`.
+name: proxy
+
+services:
+  app:
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    ports:
+      - '80:80'   # Public HTTP Port
+      - '443:443' # Public HTTPS Port
+      - '81:81'   # Admin Web Port
+      # Add any other Stream port you want to expose
+      # - '21:21' # FTP
+    environment:
+      DB_MYSQL_HOST: "db"
+      DB_MYSQL_PORT: 3306
+      DB_MYSQL_USER: "nginxpm"
+      DB_MYSQL_PASSWORD: "${DB_MYSQL_PASSWORD:?set DB_MYSQL_PASSWORD in .env}"
+      DB_MYSQL_NAME: "npm"
+      DISABLE_IPV6: 'true'
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    depends_on:
+      - db
+
+  db:
+    image: 'jc21/mariadb-aria:latest'
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}"
+      MYSQL_DATABASE: 'npm'
+      MYSQL_USER: 'nginxpm'
+      MYSQL_PASSWORD: "${DB_MYSQL_PASSWORD:?set DB_MYSQL_PASSWORD in .env}"
+    volumes:
+      - ./mysql:/var/lib/mysql
+
+  # Companion settings backup/import UI (http://<host>:82)
+  backup-ui:
+    build: ./backup-ui
+    restart: unless-stopped
+    ports:
+      - '82:80'
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: nginxpm
+      DB_PASSWORD: "${DB_MYSQL_PASSWORD:?set DB_MYSQL_PASSWORD in .env}"
+      DB_NAME: npm
+      DB_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}"
+      BACKUP_DIR: /backups
+      APP_IMAGE: 'jc21/nginx-proxy-manager:latest'
+      # Optional basic auth for the backup UI (leave blank to disable)
+      BACKUP_UI_USER: "${BACKUP_UI_USER:-}"
+      BACKUP_UI_PASSWORD: "${BACKUP_UI_PASSWORD:-}"
+      # Automatic nightly backup + rolling retention
+      CRON_SCHEDULE: '0 2 * * *'
+      BACKUP_RETENTION: 7
+    volumes:
+      - ./backups:/backups
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock  # to stop/start the NPM container on import
+    depends_on:
+      - db
