@@ -8,9 +8,9 @@ services:
     image: 'jc21/nginx-proxy-manager:latest'
     restart: unless-stopped
     ports:
-      - '80:80'   # Public HTTP Port
-      - '443:443' # Public HTTPS Port
-      - '81:81'   # Admin Web Port
+      - '${NPM_HTTP_PORT:-80}:80'   # Public HTTP Port
+      - '${NPM_HTTPS_PORT:-443}:443' # Public HTTPS Port
+      - '${NPM_ADMIN_PORT:-81}:81'   # Admin Web Port
       # Add any other Stream port you want to expose
       # - '21:21' # FTP
     environment:
@@ -42,7 +42,7 @@ services:
     build: ./backup-ui
     restart: unless-stopped
     ports:
-      - '82:80'
+      - '${BACKUP_UI_PORT:-82}:80'
     environment:
       DB_HOST: db
       DB_PORT: 3306
@@ -56,8 +56,8 @@ services:
       BACKUP_UI_USER: "${BACKUP_UI_USER:-}"
       BACKUP_UI_PASSWORD: "${BACKUP_UI_PASSWORD:-}"
       # Automatic nightly backup + rolling retention
-      CRON_SCHEDULE: '0 2 * * *'
-      BACKUP_RETENTION: 7
+      CRON_SCHEDULE: "${CRON_SCHEDULE-0 2 * * *}"
+      BACKUP_RETENTION: "${BACKUP_RETENTION:-7}"
     volumes:
       - ./backups:/backups
       - ./data:/data

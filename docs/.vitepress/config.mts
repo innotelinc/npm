@@ -2,54 +2,51 @@ import { defineConfig } from "vitepress";
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-	title: "Nginx Proxy Manager",
-	description: "Expose your services easily and securely",
+	title: "NPM Edge",
+	description: "Self-hosted edge routing, TLS termination, and recoverable proxy configuration",
 	head: [
 		["link", { rel: "icon", href: "/icon.png" }],
 		[
 			"meta",
 			{
-				name: "description",
-				content:
-					"Docker container and built in Web Application for managing Nginx proxy hosts with a simple, powerful interface, providing free SSL support via Let's Encrypt",
+				name: "description",				content:
+					"NPM Edge is the Innotel self-hosted edge component for proxy hosts, TLS termination, access policies, and recoverable Nginx Proxy Manager state.",
 			},
 		],
-		["meta", { property: "og:title", content: "Nginx Proxy Manager" }],
+		["meta", { property: "og:title", content: "NPM Edge" }],
 		[
 			"meta",
 			{
-				property: "og:description",
-				content:
-					"Docker container and built in Web Application for managing Nginx proxy hosts with a simple, powerful interface, providing free SSL support via Let's Encrypt",
+				property: "og:description",				content:
+					"NPM Edge is the Innotel self-hosted edge component for proxy hosts, TLS termination, access policies, and recoverable Nginx Proxy Manager state.",
 			},
 		],
 		["meta", { property: "og:type", content: "website" }],
-		["meta", { property: "og:url", content: "https://nginxproxymanager.com/" }],
+		["meta", { property: "og:url", content: "https://innotelinc.github.io/npm/" }],
 		[
 			"meta",
 			{
 				property: "og:image",
-				content: "https://nginxproxymanager.com/icon.png",
+				content: "https://innotelinc.github.io/npm/icon.png",
 			},
 		],
 		["meta", { name: "twitter:card", content: "summary" }],
-		["meta", { name: "twitter:title", content: "Nginx Proxy Manager" }],
+		["meta", { name: "twitter:title", content: "NPM Edge" }],
 		[
 			"meta",
 			{
-				name: "twitter:description",
-				content:
-					"Docker container and built in Web Application for managing Nginx proxy hosts with a simple, powerful interface, providing free SSL support via Let's Encrypt",
+				name: "twitter:description",				content:
+					"NPM Edge is the Innotel self-hosted edge component for proxy hosts, TLS termination, access policies, and recoverable Nginx Proxy Manager state.",
 			},
 		],
 		[
 			"meta",
 			{
 				name: "twitter:image",
-				content: "https://nginxproxymanager.com/icon.png",
+				content: "https://innotelinc.github.io/npm/icon.png",
 			},
 		],
-		["meta", { name: "twitter:alt", content: "Nginx Proxy Manager" }],
+		["meta", { name: "twitter:alt", content: "NPM Edge" }],
 		// GA
 		[
 			"script",
@@ -65,7 +62,7 @@ export default defineConfig({
 		],
 	],
 	sitemap: {
-		hostname: "https://nginxproxymanager.com",
+		hostname: "https://innotelinc.github.io/npm",
 	},
 	metaChunk: true,
 	srcDir: "./src",
@@ -92,7 +89,7 @@ export default defineConfig({
 		socialLinks: [
 			{
 				icon: "github",
-				link: "https://github.com/NginxProxyManager/nginx-proxy-manager",
+				link: "https://github.com/innotelinc/npm",
 			},
 		],
 		search: {
@@ -100,7 +97,7 @@ export default defineConfig({
 		},
 		footer: {
 			message: "Released under the MIT License.",
-			copyright: "Copyright © 2016-present jc21.com",
+			copyright: "NPM Edge — Innotel EdgeOps",
 		},
 	},
 });
