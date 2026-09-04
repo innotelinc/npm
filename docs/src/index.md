@@ -1,32 +1,32 @@
 ---
-# https://vitepress.dev/reference/default-theme-home-page
+# NPM Edge — VitePress documentation
 layout: home
 
 hero:
-  name: "Nginx Proxy Manager"
-  tagline: Expose your services easily and securely
+  name: "NPM Edge"
+  tagline: Route safely. Recover quickly.
   image:
     src: /logo.svg
-    alt: NPM Logo
+    alt: NPM Edge logo
   actions:
     - theme: brand
       text: Get Started
-      link: /guide/
+      link: /setup/
     - theme: alt
       text: GitHub
-      link: https://github.com/NginxProxyManager/nginx-proxy-manager
+      link: https://github.com/innotelinc/npm
 
 features:
-  - title: Get Connected
-    details: Expose web services on your network &middot; Free SSL with Let's Encrypt  &middot; Designed with security in mind  &middot; Perfect for home networks
-  - title: Proxy Hosts
-    details: Expose your private network Web services and get connected anywhere.
-  - title: Beautiful UI
-    details: Based on Tabler, the interface is a pleasure to use. Configuring a server has never been so fun.
-  - title: Free SSL
-    details: Built in Let’s Encrypt support allows you to secure your Web services at no cost to you. The certificates even renew themselves!
-  - title: Docker FTW
-    details: Built as a Docker Image, Nginx Proxy Manager only requires a database.
-  - title: Multiple Users
-    details: Configure other users to either view or manage their own hosts. Full access permissions are available.
+  - title: Reverse Proxy
+    details: Forward public hostnames to private services with proxy hosts, redirects, streams, and custom Nginx policies.
+  - title: TLS at the Edge
+    details: Issue, renew, and attach Let's Encrypt or custom certificates to the hosts that need them.
+  - title: Access Control
+    details: Apply access lists and optional HTTP authentication before traffic reaches an application.
+  - title: Recoverable State
+    details: Use the bundled backup-ui to snapshot the NPM database, /data configuration, and certificate material together.
+  - title: Local-BIND Component
+    details: Cerulean starts this complete NPM, MariaDB, and backup-ui stack only when BIND_MODE=local and NPM_MODE=local.
+  - title: Platform Ready
+    details: Integrate Cerulean for trust, Infisical for secrets, and any Innotel application behind the edge.
 ---

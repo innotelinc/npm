@@ -1,0 +1,50 @@
+# Publish the NPM Edge landing page (web/landing/) to GitHub Pages.
+#
+#   https://innotelinc.github.io/npm/
+#
+# Pages must be enabled once in repository settings, or via the workflow's
+# configure-pages step. The current repository branch is develop; main/master
+# remain supported for the portfolio's standard branch layout.
+
+name: GitHub Pages
+
+on:
+  push:
+    branches: [develop, main, master]
+    paths:
+      - "web/landing/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload static site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/landing
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

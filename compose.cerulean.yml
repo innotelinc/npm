@@ -1,0 +1,75 @@
+# Cerulean's local-BIND integration for the complete NPM Edge component.
+# This file is included by ../cerulean-dns-platform/docker-compose.yml.
+# It is intentionally profile-gated: Cerulean enables these services only when
+# BIND_MODE=local and NPM_MODE=local.
+
+services:
+  cerulean-npm:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: cerulean-npm
+    profiles: ["npm"]
+    restart: unless-stopped
+    environment:
+      DB_MYSQL_HOST: cerulean-npm-db
+      DB_MYSQL_PORT: 3306
+      DB_MYSQL_USER: nginxpm
+      DB_MYSQL_PASSWORD: "${NPM_DB_MYSQL_PASSWORD:-}"
+      DB_MYSQL_NAME: npm
+      DISABLE_IPV6: "true"
+    ports:
+      - "${NPM_HTTP_PORT:-80}:80"
+      - "${NPM_HTTPS_PORT:-443}:443"
+      - "${NPM_ADMIN_PORT:-81}:81"
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    depends_on:
+      cerulean-npm-db:
+        condition: service_healthy
+
+  cerulean-npm-db:
+    image: jc21/mariadb-aria:latest
+    container_name: cerulean-npm-db
+    profiles: ["npm"]
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "${NPM_DB_ROOT_PASSWORD:-}"
+      MYSQL_DATABASE: npm
+      MYSQL_USER: nginxpm
+      MYSQL_PASSWORD: "${NPM_DB_MYSQL_PASSWORD:-}"
+    volumes:
+      - ./mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -u root -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  cerulean-npm-backup-ui:
+    build: ./backup-ui
+    container_name: cerulean-npm-backup-ui
+    profiles: ["npm"]
+    restart: unless-stopped
+    ports:
+      - "${NPM_BACKUP_UI_PORT:-82}:80"
+    environment:
+      DB_HOST: cerulean-npm-db
+      DB_PORT: 3306
+      DB_USER: nginxpm
+      DB_PASSWORD: "${NPM_DB_MYSQL_PASSWORD:-}"
+      DB_NAME: npm
+      DB_ROOT_PASSWORD: "${NPM_DB_ROOT_PASSWORD:-}"
+      BACKUP_DIR: /backups
+      APP_IMAGE: jc21/nginx-proxy-manager:latest
+      BACKUP_UI_USER: "${NPM_BACKUP_UI_USER:-}"
+      BACKUP_UI_PASSWORD: "${NPM_BACKUP_UI_PASSWORD:-}"
+      CRON_SCHEDULE: "${NPM_CRON_SCHEDULE-0 2 * * *}"
+      BACKUP_RETENTION: "${NPM_BACKUP_RETENTION:-7}"
+    volumes:
+      - ./backups:/backups
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      cerulean-npm-db:
+        condition: service_healthy
