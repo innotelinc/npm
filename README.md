@@ -8,6 +8,7 @@ NPM Edge packages Nginx Proxy Manager with its MariaDB state store and the
 `backup-ui` companion into one reproducible Docker Compose stack.
 
 [![CI](https://github.com/innotelinc/npm/actions/workflows/ci.yml/badge.svg)](https://github.com/innotelinc/npm/actions/workflows/ci.yml)
+[![Conformity](https://github.com/innotelinc/npm/actions/workflows/conform.yml/badge.svg)](https://github.com/innotelinc/npm/actions/workflows/conform.yml)
 [![Pages](https://github.com/innotelinc/npm/actions/workflows/pages.yml/badge.svg)](https://github.com/innotelinc/npm/actions/workflows/pages.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
