@@ -25,6 +25,12 @@ remain under operator control · backups are logical and restorable · secrets l
 in `.env` or Infisical, never in Git · the backup UI is opt-in protected with
 HTTP Basic Authentication.
 
+| Problem | NPM Edge answer |
+|---|---|
+| Public hostnames need to reach private services safely | Reverse proxy with per-host TLS termination and access lists |
+| Certificates and proxy state must not be a manual, unrecoverable mess | Logical `backup-ui` snapshots of NPM + MariaDB + certificate material |
+| Every platform needs an HTTP/S front door | One reproducible edge with an idempotent NPM API for automation |
+
 ---
 
 ## ✨ What it does
@@ -254,8 +260,13 @@ NPM Edge is the ecosystem's **EdgeOps** component in the
 the public routing and TLS termination layer consumed by every platform that
 needs an HTTP/S edge. Cerulean owns DNS and trust lifecycle, Authentik owns
 identity, Infisical owns secrets, ONYX owns storage, and NPM owns forwarding,
-edge policy, and recoverable proxy configuration.
+edge policy, and recoverable proxy configuration. See
+[docs/stack.md](docs/stack.md) for the full owns/consumes map.
 
 ---
 
 *NPM Edge — route safely, terminate TLS, recover quickly.*
+
+## License
+
+MIT © Innotel Inc. — see [LICENSE](LICENSE) for the full text.
