@@ -46,7 +46,10 @@ jobs:
       - name: No credentials or private runtime data in tracked files
         run: |
           set -euo pipefail
-          test -z "$(git ls-files | grep -E '(^|/)(\.env|data/|mysql/|letsencrypt/|backups/)' || true)"
+          # .env.example is the canonical template and is required to be tracked —
+          # exclude it; everything else under .env/ data/ mysql/ letsencrypt/ backups/
+          # is private runtime data and must never be committed.
+          test -z "$(git ls-files | grep -E '(^|/)(\.env|data/|mysql/|letsencrypt/|backups/)' | grep -v '^\.env\.example$' || true)"
           if grep -RInE 'DB_(MYSQL_PASSWORD|ROOT_PASSWORD)=(change-me|change-me-too)' --include='*.md' --include='*.yml' --include='*.yaml' --include='*.html' . 2>/dev/null; then
             echo "Placeholder database values should not be copied into public deployment files"
             exit 1
