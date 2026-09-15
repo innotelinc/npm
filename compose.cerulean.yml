@@ -77,8 +77,15 @@ services:
     profiles: ["npm"]
     restart: unless-stopped
     network_mode: "service:cerulean-npm"
+    # The session (not the browser) is what holds the identity: one opaque id
+    # travels in the _innotel_sso cookie instead. Reached by service name
+    # because this container shares the edge's network namespace.
+    environment:
+      OAUTH2_PROXY_REDIS_CONNECTION_URL: redis://:${SSO_SESSION_REDIS_PASSWORD:-}@cerulean-sso-sessions:6379/0
     depends_on:
       cerulean-npm:
+        condition: service_started
+      cerulean-sso-sessions:
         condition: service_started
     # Endpoints are explicit (no OIDC discovery): Authentik here advertises the
     # *base* URL as its issuer while the app-scoped endpoints live under
@@ -98,9 +105,30 @@ services:
       - --cookie-secret=${SSO_COOKIE_SECRET:-}
       - --cookie-name=_innotel_sso
       - --cookie-domain=${SSO_COOKIE_DOMAIN:-.innotel.us}
+      # SERVER-SIDE SESSIONS, AND THIS IS LOAD-BEARING. A cookie session carries
+      # the email, the ID token and every group the identity claims; that exceeds
+      # the 4KB a cookie can hold, so oauth2-proxy splits it across several
+      # cookies, the callback's response header grows past the edge's
+      # `proxy_buffer_size`, and nginx answers the login with
+      # "upstream sent too big header while reading response header from upstream"
+      # -> 502 on /oauth2/callback, i.e. the sign-in silently fails at the one
+      # hop that finishes it. Measured live before this flag existed.
+      - --session-store-type=redis
+      - --pass-access-token=false
+      - --pass-authorization-header=false
       - --cookie-secure=true
       - --cookie-samesite=lax
       - --email-domain=*
+      # Authentik's own `email` scope mapping sets email_verified: false (it has no
+      # authoritative source for whether an address is verified), and oauth2-proxy
+      # refuses such a token by default — the callback dies with
+      # "email in id_token (...) isn't verified" and the browser gets a 500.
+      # Verified live: without this flag nobody can sign in at all. It is safe
+      # because the door is --allowed-group below, not the address.
+      - --insecure-oidc-allow-unverified-email
+      # Without this the `groups` claim is never read, so --allowed-group
+      # restricts nothing and any authenticated identity is admitted.
+      - --oidc-groups-claim=groups
       - --allowed-group=${SSO_REQUIRED_GROUP:-cerulean-platform}
       - --scope=openid email profile groups
       - --http-address=127.0.0.1:${NPM_SSO_GATEWAY_PORT:-4180}
@@ -111,6 +139,43 @@ services:
       - --skip-provider-button=true
       - --redirect-url=${NPM_SSO_REDIRECT_URL:-https://proxy.innotel.us/oauth2/callback}
       - --whitelist-domain=${SSO_COOKIE_DOMAIN:-.innotel.us}
+
+  # ── Shared SSO session store (one sign-in across every gateway) ───────────
+  # oauth2-proxy keeps sessions here rather than in the browser cookie (see the
+  # --session-store-type note on the gateway above). Every gateway in the
+  # platform points at THIS store, so a session established through one of them
+  # is found by all the others and the shared `_innotel_sso` cookie means one
+  # Authentik sign-in covers every surface.
+  #
+  # It is published on the host because the gateways live in three different
+  # Docker networks (the edge's own, Monarch's, Capstone's); the LAN address is
+  # the one the other two can both reach. The password is therefore the whole
+  # control on that listener, which is why an empty one refuses to start rather
+  # than opening it. Sessions are the only thing stored, there is no volume, and
+  # losing it costs a re-login and nothing else.
+  cerulean-sso-sessions:
+    image: redis:7-alpine
+    container_name: cerulean-sso-sessions
+    profiles: ["npm"]
+    restart: unless-stopped
+    environment:
+      SSO_SESSION_REDIS_PASSWORD: "${SSO_SESSION_REDIS_PASSWORD:-}"
+    command:
+      - sh
+      - -c
+      - |
+        if [ -z "$$SSO_SESSION_REDIS_PASSWORD" ]; then
+          echo "cerulean-sso-sessions: SSO_SESSION_REDIS_PASSWORD is empty; refusing to start an unauthenticated session store." >&2
+          echo "Add one with:  printf 'SSO_SESSION_REDIS_PASSWORD=%s\\n' \$$(openssl rand -hex 32) >> .env" >&2
+          exit 2
+        fi
+        exec redis-server \
+          --requirepass "$$SSO_SESSION_REDIS_PASSWORD" \
+          --save "" \
+          --appendonly no \
+          --maxmemory-policy noeviction
+    ports:
+      - "${SSO_SESSION_REDIS_HOST:-192.168.1.46}:${SSO_SESSION_REDIS_PORT:-16380}:6379"
 
   cerulean-npm-db:
     image: jc21/mariadb-aria:latest

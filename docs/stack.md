@@ -47,8 +47,27 @@ path** — and the gateway then proxies the authenticated request to
 `127.0.0.1:<NPM_ADMIN_PORT>`, setting `X-Forwarded-Email`, `X-Forwarded-User` and
 `X-Forwarded-Groups`.
 
-Two facts have to hold before those identity headers are believed, and the app
-checks both (`backend/lib/sso.js`):
+Three settings make that flow *work*, and all three were missing from the first
+version of it — which is why the sign-in had never actually completed. They are
+worth knowing before changing the gateway's flags, because each failure is a
+different HTTP code that looks like something else:
+
+- `--insecure-oidc-allow-unverified-email` — Authentik's own `email` scope
+  mapping sets `email_verified: false`, and oauth2-proxy refuses such a token.
+  Without it the callback dies with `email in id_token (…) isn't verified` →
+  **HTTP 500**.
+- `--oidc-groups-claim=groups` — without it `--allowed-group` restricts
+  **nothing** and any authenticated identity is admitted.
+- `--session-store-type=redis` — a cookie session carries the ID token and every
+  group, which exceeds the 4KB cookie ceiling; the several `Set-Cookie` headers
+  that follow overflow this edge's `proxy_buffer_size`, and nginx answers the
+  callback with `upstream sent too big header while reading response header from
+  upstream` → **HTTP 502**. The session therefore lives in
+  `cerulean-sso-sessions` (`compose.cerulean.yml`), which every gateway on the
+  platform shares, so one Authentik sign-in covers all of them.
+
+Two further facts have to hold before those identity headers are believed, and
+the app checks both (`backend/lib/sso.js`):
 
 - The request carries `X-NPM-Edge: yes`, set by this image's own admin vhost
   (`docker/rootfs/etc/nginx/conf.d/production.conf.template`). That vhost is the
