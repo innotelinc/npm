@@ -35,17 +35,17 @@ afterEach(() => {
 /**
  * A request as the edge delivers it: forwarded by this image's own admin vhost
  * (which says so), over the container's loopback, carrying the identity headers
- * the Authentik outpost injected.
+ * the SSO gateway (oauth2-proxy) set after the browser completed the OIDC code
+ * flow against Authentik.
  */
 const edgeRequest = (overrides = {}) => ({
 	socket: { remoteAddress: "127.0.0.1" },
 	headers: {
 		"x-npm-edge": "yes",
-		"x-authentik-email": "dhunter@innotel.us",
-		"x-authentik-username": "dhunter",
-		"x-authentik-name": "Darnel Hunter",
-		"x-authentik-uid": "abc123",
-		"x-authentik-groups": "cerulean-platform,Capstone",
+		"x-forwarded-email": "dhunter@innotel.us",
+		"x-forwarded-user": "dhunter",
+		"x-forwarded-preferred-username": "Darnel Hunter",
+		"x-forwarded-groups": "cerulean-platform,Capstone",
 	},
 	...overrides,
 });
@@ -164,11 +164,11 @@ describe("identityFromRequest", () => {
 	});
 
 	it("returns null when the edge vouches but sends no email", () => {
-		assert.equal(sso.identityFromRequest(withHeaders({ "x-authentik-email": "" })), null);
+		assert.equal(sso.identityFromRequest(withHeaders({ "x-forwarded-email": "" })), null);
 	});
 
 	it("normalises the identity", () => {
-		const identity = sso.identityFromRequest(withHeaders({ "x-authentik-email": " DHunter@Innotel.US " }));
+		const identity = sso.identityFromRequest(withHeaders({ "x-forwarded-email": " DHunter@Innotel.US " }));
 		assert.equal(identity.email, "dhunter@innotel.us");
 		assert.equal(identity.username, "dhunter");
 		assert.deepEqual(identity.groups, ["cerulean-platform", "Capstone"]);
@@ -185,13 +185,13 @@ describe("identityAllowed", () => {
 	});
 
 	it("refuses a non-member — the gate and this check agree", () => {
-		const outsider = sso.identityFromRequest(withHeaders({ "x-authentik-groups": "Capstone" }));
+		const outsider = sso.identityFromRequest(withHeaders({ "x-forwarded-groups": "Capstone" }));
 		assert.equal(sso.identityAllowed(outsider), false);
 	});
 
 	it("admits anyone the gateway vouches for when the group is explicitly emptied", () => {
 		process.env.AUTH_SSO_REQUIRED_GROUP = "";
-		const outsider = sso.identityFromRequest(withHeaders({ "x-authentik-groups": "Capstone" }));
+		const outsider = sso.identityFromRequest(withHeaders({ "x-forwarded-groups": "Capstone" }));
 		assert.equal(sso.identityAllowed(outsider), true);
 	});
 
@@ -210,13 +210,13 @@ describe("rolesForIdentity", () => {
 	});
 
 	it("maps everyone else to user", () => {
-		const member = sso.identityFromRequest(withHeaders({ "x-authentik-groups": "Monarch" }));
+		const member = sso.identityFromRequest(withHeaders({ "x-forwarded-groups": "Monarch" }));
 		assert.deepEqual(sso.rolesForIdentity(member), ["user"]);
 	});
 
 	it("can name a different admin group", () => {
 		process.env.AUTH_SSO_ADMIN_GROUP = "Monarch";
-		const member = sso.identityFromRequest(withHeaders({ "x-authentik-groups": "Monarch" }));
+		const member = sso.identityFromRequest(withHeaders({ "x-forwarded-groups": "Monarch" }));
 		assert.deepEqual(sso.rolesForIdentity(member), ["admin"]);
 	});
 });

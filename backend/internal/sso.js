@@ -69,7 +69,7 @@ const provisionUser = async (identity, roles) => {
 		action: "created",
 		object_type: "user",
 		object_id: user.id,
-		meta: { email: user.email, roles: roles, source: "authentik-forward-auth", subject: identity.uid },
+		meta: { email: user.email, roles: roles, source: "authentik-sso-gateway", subject: identity.uid },
 	});
 
 	return user;

@@ -73,10 +73,10 @@ router
 	/**
 	 * POST /tokens/sso
 	 *
-	 * Create a new Token from the identity the edge already authenticated. The
-	 * request carries the `X-authentik-*` headers the Authentik forward-auth
-	 * outpost injects, and it is only believed on a loopback connection — the
-	 * edge's own nginx. See lib/sso.js.
+	 * Create a new Token from the identity the SSO gateway already authenticated.
+	 * The request carries the `X-Forwarded-Email/User/Groups` headers oauth2-proxy
+	 * set, relayed by this image's own nginx, and it is only believed on a
+	 * loopback connection — the edge's own vhost. See lib/sso.js.
 	 */
 	.post(async (req, res, next) => {
 		try {

@@ -57,7 +57,7 @@ their domains of responsibility:
 | System | Relationship |
 |---|---|
 | **Cerulean** | TrustOps owner: DNS automation and certificate lifecycle; exports/attaches material to NPM |
-| **Authentik** | IdentityOps owner: SSO and user identity for consuming applications — including this admin UI, which signs in through the forward-auth gate; NPM remains the edge, not the identity source and not a user directory |
+| **Authentik** | IdentityOps owner: SSO and user identity for consuming applications — including this admin UI, which signs in through the platform's OIDC gateway (`oauth2-proxy`); NPM remains the edge, not the identity source and not a user directory |
 | **Cerulean Vault** | SecretOps owner: stores NPM, database, DNS, and certificate integration secrets |
 | **ONYX** | StorageOps owner: optional destination for copied backup archives |
 | **Monarch / Zeus / Signara / Oasis** | Business platforms behind NPM proxy hosts |

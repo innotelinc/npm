@@ -33,12 +33,22 @@ applications.
 
 Upstream Nginx Proxy Manager ships one login — an email and password in its own
 `user` table — and has no OIDC. That login is a second identity store, so this
-fork's `backend/lib/sso.js` turns the edge's Authentik forward auth into the
-admin UI's sign-in: **the admin UI signs in with the identity the edge already
-authenticated**, and the password grant is refused on every gated door.
+fork's `backend/lib/sso.js` turns a real Authentik OIDC sign-in into the admin
+UI's login: **the admin UI signs in with the identity the platform's SSO gateway
+already established**, and the password grant is refused on every gated door.
 
-Two facts have to hold before an identity header is believed, and the app checks
-both (`backend/lib/sso.js`):
+The gateway is `oauth2-proxy` (`cerulean-npm-sso` in `compose.cerulean.yml`), an
+OIDC relying party registered in Authentik as the `npm-edge` application. It runs
+in this container's network namespace, so it listens on the container's loopback
+and the proxy host that fronts the admin UI forwards to
+`127.0.0.1:<NPM_SSO_GATEWAY_PORT>`, not to `:81`. The browser completes a real
+code flow against Authentik — **no outpost and no `auth_request` anywhere in the
+path** — and the gateway then proxies the authenticated request to
+`127.0.0.1:<NPM_ADMIN_PORT>`, setting `X-Forwarded-Email`, `X-Forwarded-User` and
+`X-Forwarded-Groups`.
+
+Two facts have to hold before those identity headers are believed, and the app
+checks both (`backend/lib/sso.js`):
 
 - The request carries `X-NPM-Edge: yes`, set by this image's own admin vhost
   (`docker/rootfs/etc/nginx/conf.d/production.conf.template`). That vhost is the
@@ -52,17 +62,18 @@ both (`backend/lib/sso.js`):
   could reach the API directly and set any header it likes. Only the vhost's hop
   is loopback.
 
-Together that means: **every proxy host that fronts this UI must forward to
-`127.0.0.1:<admin port>`**, not to this host's LAN IP — the vhost then sees a
-loopback peer and vouches for the request. A host pointing at the LAN IP, and a
-client reaching the published admin port directly, fail both checks: forging
-`X-authentik-*` (or `X-NPM-Edge` itself) gets 403. A host that forwards to the
-LAN IP simply gets no SSO, and its login page says so.
+Together that means: **every proxy host that fronts this UI must forward to the
+gateway's loopback address** (`127.0.0.1:<NPM_SSO_GATEWAY_PORT>`), not to this
+host's LAN IP — the gateway is the only thing that can reach the admin port over
+loopback, and the vhost then vouches for its request. A host pointing at the LAN
+IP, and a client reaching the published admin port directly, fail both checks:
+forging the identity headers (or `X-NPM-Edge` itself) gets 403. A host that
+forwards to the LAN IP simply gets no SSO, and its login page says so.
 
 Once the caller is trusted:
 - The identity must be in `AUTH_SSO_REQUIRED_GROUP` (default
-  `cerulean-platform`), mirroring the Authentik application's own group binding,
-  so the gate and this check agree. Members of `AUTH_SSO_ADMIN_GROUP` get NPM's
+  `cerulean-platform`), mirroring the gateway's own `--allowed-group`, so the
+  gateway and this check agree. Members of `AUTH_SSO_ADMIN_GROUP` get NPM's
   `admin` role; everyone else gets `user`.
 - The NPM user is created on first sign-in (`AUTH_SSO_AUTO_CREATE`) with **no
   `auth` row at all** — there is no password to steal, and `POST /tokens` can
@@ -101,9 +112,9 @@ Authentication stays as the private-network guard it documents itself as.
   `.env.example`) to provision hosts and attach certificates idempotently. It
   runs off-edge as a service account, which is why it keeps working once the
   password grant is closed to everyone else.
-- Proxy hosts that front the admin UI forward to its loopback
-  (`127.0.0.1:<NPM_ADMIN_PORT>`), not to the host's LAN IP. See [Sign-in the
-  admin UI](#sign-in-the-admin-ui).
+- Proxy hosts that front the admin UI forward to the SSO gateway's loopback
+  (`127.0.0.1:<NPM_SSO_GATEWAY_PORT>`), not to the host's LAN IP or `:81`. See
+  [Sign-in the admin UI](#sign-in-the-admin-ui).
 - Backup archives may be copied to ONYX; restore is a privileged operation
   that replaces live edge state.
 - Secrets stay in `.env` or Cerulean Vault, never in Git.

@@ -1,13 +1,14 @@
 # Was this request forwarded by our own edge vhost, or did it arrive straight
 # at the admin port?
 #
-# The proxy hosts that front this UI forward to 127.0.0.1 (the app's loopback),
-# so an edge request reaches this nginx from the container's own address. The
-# published LAN port, the Docker network and every routable client cannot be
-# loopback. The answer is passed to the app as X-NPM-Edge, where
-# backend/lib/sso.js believes the Authentik identity headers only when it reads
-# "yes". Set here rather than left to the caller: a client that sends its own
-# X-NPM-Edge is overwritten, which is what makes it a proof.
+# The SSO gateway (oauth2-proxy, `cerulean-npm-sso`) runs in this container's
+# network namespace and forwards to 127.0.0.1 (the app's loopback), so an edge
+# request reaches this nginx from the container's own address. The published LAN
+# port, the Docker network and every routable client cannot be loopback. The
+# answer is passed to the app as X-NPM-Edge, where backend/lib/sso.js believes
+# the gateway's identity headers (X-Forwarded-Email/User/Groups) only when it
+# reads "yes". Set here rather than left to the caller: a client that sends its
+# own X-NPM-Edge is overwritten, which is what makes it a proof.
 map $remote_addr $npm_edge_request {
 	default            "no";
 	127.0.0.1          "yes";

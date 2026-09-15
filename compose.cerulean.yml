@@ -14,6 +14,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.sso
+      args:
+        BUILD_VERSION: '2.15.1'
     container_name: cerulean-npm
     profiles: ["npm"]
     restart: unless-stopped
@@ -57,6 +59,58 @@ services:
     depends_on:
       cerulean-npm-db:
         condition: service_healthy
+
+  # ── SSO gateway (oauth2-proxy) ────────────────────────────────────────────
+  # Nginx Proxy Manager has no OIDC support, so the admin UI's sign-in is a real
+  # OIDC code flow performed here by oauth2-proxy — no outpost and no
+  # auth_request in the path. It shares the edge's network namespace
+  # (network_mode: service:cerulean-npm), so it listens on the edge's loopback
+  # and the proxy host that fronts the admin UI forwards to
+  # 127.0.0.1:${NPM_SSO_GATEWAY_PORT} instead of :${NPM_ADMIN_PORT}. Binding to
+  # 127.0.0.1 keeps the gateway off the published LAN ports.
+  #
+  # Same cookie name/secret/domain as every other gateway in the stack, so one
+  # Authentik sign-in is shared by all of them.
+  cerulean-npm-sso:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.2
+    container_name: cerulean-npm-sso
+    profiles: ["npm"]
+    restart: unless-stopped
+    network_mode: "service:cerulean-npm"
+    depends_on:
+      cerulean-npm:
+        condition: service_started
+    # Endpoints are explicit (no OIDC discovery): Authentik here advertises the
+    # *base* URL as its issuer while the app-scoped endpoints live under
+    # /application/o/<slug>/, so go-oidc's issuer check would reject a discovered
+    # document. --skip-oidc-discovery + the four URLs below are the supported way
+    # around that; the issuer must still match the id_token's `iss`.
+    command:
+      - --provider=oidc
+      - --skip-oidc-discovery=true
+      - --oidc-issuer-url=${NPM_SSO_AUTHENTIK_BASE:-https://auth.cerulean.innotel.us}/
+      - --login-url=${NPM_SSO_AUTHENTIK_BASE:-https://auth.cerulean.innotel.us}/application/o/authorize/
+      - --redeem-url=${NPM_SSO_AUTHENTIK_BASE:-https://auth.cerulean.innotel.us}/application/o/token/
+      - --profile-url=${NPM_SSO_AUTHENTIK_BASE:-https://auth.cerulean.innotel.us}/application/o/userinfo/
+      - --oidc-jwks-url=${NPM_SSO_AUTHENTIK_BASE:-https://auth.cerulean.innotel.us}/application/o/${NPM_SSO_APP_SLUG:-npm-edge}/jwks/
+      - --client-id=${NPM_SSO_CLIENT_ID:-npm-edge}
+      - --client-secret=${NPM_SSO_CLIENT_SECRET:-}
+      - --cookie-secret=${SSO_COOKIE_SECRET:-}
+      - --cookie-name=_innotel_sso
+      - --cookie-domain=${SSO_COOKIE_DOMAIN:-.innotel.us}
+      - --cookie-secure=true
+      - --cookie-samesite=lax
+      - --email-domain=*
+      - --allowed-group=${SSO_REQUIRED_GROUP:-cerulean-platform}
+      - --scope=openid email profile groups
+      - --http-address=127.0.0.1:${NPM_SSO_GATEWAY_PORT:-4180}
+      - --upstream=http://127.0.0.1:${NPM_ADMIN_PORT:-81}
+      - --reverse-proxy=true
+      - --pass-user-headers=true
+      - --set-xauthrequest=true
+      - --skip-provider-button=true
+      - --redirect-url=${NPM_SSO_REDIRECT_URL:-https://proxy.innotel.us/oauth2/callback}
+      - --whitelist-domain=${SSO_COOKIE_DOMAIN:-.innotel.us}
 
   cerulean-npm-db:
     image: jc21/mariadb-aria:latest

@@ -1,12 +1,13 @@
 /**
- * NPM Edge — Authentik forward-auth sign-in.
+ * NPM Edge — Authentik SSO sign-in (gateway mode).
  *
  * The Innotel stack's rule is that identity lives in Cerulean's Authentik and
  * NPM is the edge, not a second user directory. Nginx Proxy Manager has no OIDC
- * support of its own, so this module turns the edge's *forward auth* into the
- * admin UI's login: the outpost has already authenticated the browser before
- * nginx proxies the request to us, and it passes the identity as
- * `X-authentik-*` headers.
+ * support of its own, so the admin UI signs in with the identity the platform's
+ * SSO gateway (oauth2-proxy) has already established: the gateway runs in this
+ * container's network namespace (docker compose `cerulean-npm-sso`), does a real
+ * OIDC code flow against Authentik for the browser, and on every authenticated
+ * request sets `X-Forwarded-User/Email/Groups` headers for the upstream.
  *
  * Where does a request come from? Two facts, and it must be both:
  *
@@ -15,20 +16,27 @@
  *     the only thing that can reach the backend, and it sets the header on every
  *     `/api/` request from the peer address it saw — so a caller that sends its
  *     own `X-NPM-Edge` is overwritten. It says "yes" only when the peer was the
- *     container's own loopback, which is what a proxy host that fronts the UI
- *     looks like (they forward to `127.0.0.1`, never to the host's LAN IP).
+ *     container's own loopback, which is what a fronting proxy host looks like
+ *     (they forward to `127.0.0.1`, never to the host's LAN IP).
  *   - A loopback connection to the backend itself. The backend listens on
  *     0.0.0.0, so the nginx layer above is not the only way in; a container on
  *     the same Docker network could reach it directly and set any header it
  *     likes. Only nginx's own hop is loopback.
  *
- * A client on the published LAN port fails both: nginx sees a non-loopback peer
- * and answers "no", so forging `X-authentik-*` (or `X-NPM-Edge` itself) gets
- * nothing. Then:
+ * The gateway shares this container's network namespace, so the proxy host that
+ * fronts it forwards to `127.0.0.1` — the gateway's own address, and a loopback
+ * peer from this nginx's point of view. Its identity headers are relayed by the
+ * proxy include (`conf.d/include/proxy.conf`); the gateway is the only thing on
+ * loopback that a fronting host can point at, so by the time the backend sees
+ * these headers the browser has completed the OIDC code flow. A client that
+ * never passed the gateway fails both facts above: the fronting host refuses it
+ * (redirect to Authentik), and hitting the published LAN port yields "no" from
+ * the vhost — forging `X-Forwarded-*` (or `X-NPM-Edge` itself) gets nothing.
  *
- *   1. The identity must be a member of `AUTH_SSO_REQUIRED_GROUP`, mirroring the
- *      Authentik application's own group binding so the gate and this check
- *      agree.
+ * Then:
+ *
+ *   1. The identity must be a member of `AUTH_SSO_REQUIRED_GROUP`, mirroring
+ *      the Authentik application's own group binding so gate and check agree.
  *   2. A request that did come from the edge may never use the password grant —
  *      every door to the UI is SSO-only. The password path survives off-edge for
  *      exactly two things: automation service accounts, and break-glass.
@@ -170,16 +178,20 @@ const identityFromRequest = (req, cfg = config()) => {
 		return null;
 	}
 	const headers = req?.headers ?? {};
-	const email = normalizeEmail(headers["x-authentik-email"]);
+	// The gateway's identity headers. oauth2-proxy sets these on authenticated
+	// upstream requests; a fronting host relays them via the proxy include, and
+	// the include overwrites whatever the client sent — so they cannot be forged
+	// from the browser side of the gate.
+	const email = normalizeEmail(headers["x-forwarded-email"]);
 	if (email === "") {
 		return null;
 	}
 	return {
 		email: email,
-		username: (headers["x-authentik-username"] ?? "").trim(),
-		name: (headers["x-authentik-name"] ?? "").trim(),
-		uid: (headers["x-authentik-uid"] ?? "").trim(),
-		groups: parseGroups(headers["x-authentik-groups"]),
+		username: (headers["x-forwarded-user"] ?? headers["x-forwarded-preferred-username"] ?? "").trim(),
+		name: (headers["x-forwarded-preferred-username"] ?? "").trim(),
+		uid: (headers["x-forwarded-user"] ?? "").trim(),
+		groups: parseGroups(headers["x-forwarded-groups"]),
 	};
 };
 

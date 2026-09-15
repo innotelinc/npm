@@ -10,6 +10,7 @@ import {
 	type TokenResponse,
 	verify2FA,
 } from "src/api/backend";
+import { useHealth } from "src/hooks/useHealth";
 import AuthStore from "src/modules/AuthStore";
 
 // 2FA challenge state
@@ -77,13 +78,23 @@ function AuthProvider({ children, tokenRefreshInterval = 5 * 60 * 1000 }: Props)
 		}
 	}, [handleTokenUpdate]);
 
+	// SSO is the exception, not the rule: only attempt it when the backend
+	// reports it enabled. (unknown = older backend that predates the health
+	// contract, where the attempt is harmless.) An attempt that the backend
+	// would refuse anyway just burns a 403 and a spinner flash.
+	const { data: health } = useHealth();
+	const ssoEnabled = health?.auth?.sso?.enabled;
 	useEffect(() => {
-		if (ssoAttempted.current || AuthStore.hasActiveToken()) {
+		if (ssoAttempted.current || AuthStore.hasActiveToken() || ssoEnabled === false) {
+			return;
+		}
+		if (ssoEnabled === undefined) {
+			// Health has not answered yet — wait for it rather than guessing.
 			return;
 		}
 		ssoAttempted.current = true;
 		ssoLogin();
-	}, [ssoLogin]);
+	}, [ssoLogin, ssoEnabled]);
 
 	const login = async (identity: string, secret: string) => {
 		const response = await getToken(identity, secret);
