@@ -20,6 +20,10 @@ services:
       DB_MYSQL_PASSWORD: "${DB_MYSQL_PASSWORD:?set DB_MYSQL_PASSWORD in .env}"
       DB_MYSQL_NAME: "npm"
       DISABLE_IPV6: 'true'
+      # First-run admin, created only while the user table is empty. Set these
+      # or the fresh instance has to be claimed through the setup wizard.
+      INITIAL_ADMIN_EMAIL: "${INITIAL_ADMIN_EMAIL:-admin@innotel.us}"
+      INITIAL_ADMIN_PASSWORD: "${INITIAL_ADMIN_PASSWORD:-}"
     volumes:
       - ./data:/data
       - ./letsencrypt:/etc/letsencrypt
