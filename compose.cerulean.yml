@@ -174,8 +174,15 @@ services:
           --save "" \
           --appendonly no \
           --maxmemory-policy noeviction
+    # Published on the host's loopback and docker0 gateway only — never the LAN
+    # address. The edge's own gateway reaches it by service name (they share a
+    # network namespace), but the gateways in the *other* stacks are separate
+    # compose projects, so they dial the docker0 address instead
+    # (SSO_SESSION_REDIS_HOST). A password-protected session store has no
+    # business being reachable from the office wifi.
     ports:
-      - "${SSO_SESSION_REDIS_HOST:-192.168.1.46}:${SSO_SESSION_REDIS_PORT:-16380}:6379"
+      - "${SSO_SESSION_REDIS_BIND:-127.0.0.1}:${SSO_SESSION_REDIS_PORT:-16380}:6379"
+      - "${SSO_SESSION_REDIS_DOCKER_BIND:-172.17.0.1}:${SSO_SESSION_REDIS_PORT:-16380}:6379"
 
   cerulean-npm-db:
     image: jc21/mariadb-aria:latest

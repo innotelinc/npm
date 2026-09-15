@@ -64,7 +64,11 @@ different HTTP code that looks like something else:
   callback with `upstream sent too big header while reading response header from
   upstream` → **HTTP 502**. The session therefore lives in
   `cerulean-sso-sessions` (`compose.cerulean.yml`), which every gateway on the
-  platform shares, so one Authentik sign-in covers all of them.
+  platform shares, so one Authentik sign-in covers all of them. That store is
+  published on the host's loopback and the docker0 gateway only, never the LAN
+  address: this edge's gateway reaches it by service name (they share a network
+  namespace), and the gateways in the other stacks set
+  `SSO_SESSION_REDIS_HOST=172.17.0.1`.
 
 Two further facts have to hold before those identity headers are believed, and
 the app checks both (`backend/lib/sso.js`):
