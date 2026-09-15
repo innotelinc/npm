@@ -293,6 +293,11 @@
 				"$ref": "./paths/tokens/post.json"
 			}
 		},
+		"/tokens/sso": {
+			"post": {
+				"$ref": "./paths/tokens/sso/post.json"
+			}
+		},
 		"/tokens/2fa": {
 			"post": {
 				"$ref": "./paths/tokens/2fa/post.json"

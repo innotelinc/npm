@@ -14,6 +14,54 @@
 			"description": "Whether the initial setup has been completed",
 			"example": true
 		},
+		"auth": {
+			"type": "object",
+			"description": "Which sign-in surfaces this instance offers",
+			"additionalProperties": false,
+			"required": ["sso", "password"],
+			"example": {
+				"sso": { "enabled": true, "requiredGroup": "cerulean-platform" },
+				"password": { "enabled": false, "breakglass": false }
+			},
+			"properties": {
+				"sso": {
+					"type": "object",
+					"description": "Authentik forward-auth sign-in (the edge authenticates the browser)",
+					"additionalProperties": false,
+					"required": ["enabled", "requiredGroup"],
+					"properties": {
+						"enabled": {
+							"type": "boolean",
+							"description": "AUTH_SSO_ENABLED",
+							"example": true
+						},
+						"requiredGroup": {
+							"type": "string",
+							"description": "Authentik group an identity must be in to use the admin UI",
+							"example": "cerulean-platform"
+						}
+					}
+				},
+				"password": {
+					"type": "object",
+					"description": "The local password grant. Off on every edge door; kept for automation service accounts and break-glass recovery",
+					"additionalProperties": false,
+					"required": ["enabled", "breakglass"],
+					"properties": {
+						"enabled": {
+							"type": "boolean",
+							"description": "Whether the form can be used at all (SSO off, break-glass on, or automation accounts exist)",
+							"example": false
+						},
+						"breakglass": {
+							"type": "boolean",
+							"description": "BREAKGLASS_LOGIN=1",
+							"example": false
+						}
+					}
+				}
+			}
+		},
 		"version": {
 			"type": "object",
 			"description": "The version object",

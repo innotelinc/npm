@@ -2,6 +2,7 @@ import express from "express";
 import { isCI } from "../lib/config.js";
 import errs from "../lib/error.js";
 import logRequest from "../lib/express/log-request.js";
+import * as sso from "../lib/sso.js";
 import pjson from "../package.json" with { type: "json" };
 import { isSetup } from "../setup.js";
 import auditLogRoutes from "./audit-log.js";
@@ -30,6 +31,9 @@ router.use(logRequest);
 /**
  * Health Check
  * GET /api
+ *
+ * `auth` tells the SPA which sign-in surface to render: when SSO is on, the
+ * admin UI signs in through the edge and the password form is not offered.
  */
 router.get("/", async (_, res /*, next*/) => {
 	const version = pjson.version.split("-").shift().split(".");
@@ -38,6 +42,7 @@ router.get("/", async (_, res /*, next*/) => {
 	res.status(200).send({
 		status: "OK",
 		setup,
+		auth: sso.authInfo(),
 		version: {
 			major: Number.parseInt(version.shift(), 10),
 			minor: Number.parseInt(version.shift(), 10),

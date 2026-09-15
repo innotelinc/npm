@@ -1,6 +1,7 @@
 import { Field, Form, Formik } from "formik";
 import { useEffect, useRef, useState } from "react";
 import Alert from "react-bootstrap/Alert";
+import Spinner from "react-bootstrap/Spinner";
 import { Button, LocalePicker, Page, ThemeSwitcher } from "src/components";
 import { useAuthState } from "src/context";
 import { useHealth } from "src/hooks";
@@ -166,9 +167,61 @@ function LoginForm() {
 	);
 }
 
+/**
+ * The edge is signing this browser in with the identity Authentik already
+ * authenticated — there is nothing to type.
+ */
+function SsoPendingForm() {
+	return (
+		<>
+			<h2 className="h2 text-center mb-4">
+				<T id="login.sso-pending" />
+			</h2>
+			<div className="text-center">
+				<Spinner animation="border" role="status" />
+			</div>
+		</>
+	);
+}
+
+/**
+ * SSO is the only way in on this instance and this request did not come through
+ * the gate, so there is no form to offer — say so instead of showing one that
+ * cannot work.
+ */
+function SsoOnlyForm() {
+	const { ssoLogin } = useAuthState();
+	const [isRetrying, setIsRetrying] = useState(false);
+
+	const onRetry = async () => {
+		setIsRetrying(true);
+		await ssoLogin();
+		setIsRetrying(false);
+	};
+
+	return (
+		<>
+			<h2 className="h2 text-center mb-4">
+				<T id="login.sso-only-title" />
+			</h2>
+			<p className="text-secondary text-center mb-4">
+				<T id="login.sso-only-description" />
+			</p>
+			<div className="form-footer">
+				<Button type="button" fullWidth color="azure" isLoading={isRetrying} onClick={onRetry}>
+					<T id="login.sso-retry" />
+				</Button>
+			</div>
+		</>
+	);
+}
+
 export default function Login() {
-	const { twoFactorChallenge } = useAuthState();
+	const { twoFactorChallenge, ssoState } = useAuthState();
 	const health = useHealth();
+
+	// Absent means an older backend: behave like upstream and offer the form.
+	const passwordLoginEnabled = health.data?.auth?.password?.enabled ?? true;
 
 	const getVersion = () => {
 		if (!health.data) {
@@ -193,7 +246,17 @@ export default function Login() {
 					</div>
 				</div>
 				<div className="card card-md">
-					<div className="card-body">{twoFactorChallenge ? <TwoFactorForm /> : <LoginForm />}</div>
+					<div className="card-body">
+						{twoFactorChallenge ? (
+							<TwoFactorForm />
+						) : ssoState === "pending" ? (
+							<SsoPendingForm />
+						) : passwordLoginEnabled ? (
+							<LoginForm />
+						) : (
+							<SsoOnlyForm />
+						)}
+					</div>
 				</div>
 				<div className="text-center text-secondary mt-3">{getVersion()}</div>
 			</div>

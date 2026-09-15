@@ -1,0 +1,29 @@
+{
+	"operationId": "requestTokenFromForwardAuth",
+	"summary": "Request a new access token from the identity the edge authenticated",
+	"description": "Signs in through Authentik forward auth. The request must carry the identity headers the outpost injects (X-authentik-email, X-authentik-groups, ...) plus the shared secret the edge adds, and the identity must be a member of AUTH_SSO_REQUIRED_GROUP. No body is sent: the credential is the gateway's session, not a password.",
+	"tags": ["tokens"],
+	"responses": {
+		"200": {
+			"content": {
+				"application/json": {
+					"examples": {
+						"default": {
+							"value": {
+								"expires": "2025-02-04T20:40:46.340Z",
+								"token": "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.ey...xaHKYr3Kk6MvkUjcC4"
+							}
+						}
+					},
+					"schema": {
+						"$ref": "../../../components/token-object.json"
+					}
+				}
+			},
+			"description": "200 response"
+		},
+		"403": {
+			"description": "The request did not come from the edge, carried no identity, or the identity is not in the required group"
+		}
+	}
+}

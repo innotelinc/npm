@@ -1,9 +1,22 @@
 import type { AppVersion, User } from "./models";
 
+export interface HealthAuthResponse {
+	sso: {
+		enabled: boolean;
+		configured: boolean;
+		requiredGroup: string;
+	};
+	password: {
+		enabled: boolean;
+		breakglass: boolean;
+	};
+}
+
 export interface HealthResponse {
 	status: string;
 	version: AppVersion;
 	setup: boolean;
+	auth?: HealthAuthResponse;
 }
 
 export interface TokenResponse {

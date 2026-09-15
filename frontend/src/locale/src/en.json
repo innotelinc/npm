@@ -485,6 +485,18 @@
 	"login.2fa-verify": {
 		"defaultMessage": "Verify"
 	},
+	"login.sso-only-description": {
+		"defaultMessage": "This instance signs in through Cerulean's Authentik only. Open the edge hostname (for example proxy.innotel.us) so the gateway can identify you — a direct visit to the admin port cannot create a session."
+	},
+	"login.sso-only-title": {
+		"defaultMessage": "Sign in through Authentik"
+	},
+	"login.sso-pending": {
+		"defaultMessage": "Signing you in…"
+	},
+	"login.sso-retry": {
+		"defaultMessage": "Try again"
+	},
 	"login.title": {
 		"defaultMessage": "Login to your account"
 	},

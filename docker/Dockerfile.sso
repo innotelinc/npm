@@ -1,0 +1,100 @@
+# First-party NPM Edge image — the fork, not the upstream image.
+#
+# Same runtime stack as docker/Dockerfile (nginx + s6 + the upstream
+# nginxproxymanager/nginx-full base), with one difference: this file builds the
+# frontend itself, so a checkout builds the image without a prebuilt
+# frontend/dist and without a local yarn. That is what makes the Authentik
+# forward-auth sign-in (backend/lib/sso.js) shippable: it changes both the API
+# and the login page.
+#
+# Build (the path compose.cerulean.yml uses):
+#   docker build -f docker/Dockerfile.sso -t innotel/npm-edge:2.15.1 .
+#
+# Keep the runtime layers byte-compatible with docker/Dockerfile: when the
+# upstream Dockerfile changes, this one has to follow.
+
+ARG BASE_IMAGE=nginxproxymanager/nginx-full:certbot-node
+FROM nginxproxymanager/testca AS testca
+
+# ── Frontend ────────────────────────────────────────────────────────────────
+# Built here rather than copied in, and not shipped: only the dist is.
+FROM node:24-bookworm-slim AS frontend
+
+WORKDIR /build
+
+# yarn 1.22 is what yarn.lock is pinned to. The node image already ships a
+# corepack shim at /usr/local/bin/yarn, which would win over a fresh install
+# and pick its own version — replace it rather than coexist with it.
+RUN rm -f /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+	&& npm install --global yarn@1.22.22
+
+# Dependencies first: this layer is the expensive one and rarely changes.
+COPY frontend/package.json frontend/yarn.lock frontend/check-locales.cjs ./
+RUN yarn install --frozen-lockfile --non-interactive
+
+COPY frontend/ ./
+# `yarn build` is `tsc && vite build`, and tsc resolves src/locale/lang/*.json —
+# which exists only after locale-compile. vite.config.ts also spawns
+# `yarn locale-compile` on every run, so this step is belt and braces.
+RUN yarn locale-compile && yarn build
+
+# ── Runtime ─────────────────────────────────────────────────────────────────
+FROM $BASE_IMAGE
+
+ARG TARGETPLATFORM
+ARG BUILD_VERSION
+ARG BUILD_COMMIT
+ARG BUILD_DATE
+
+# See: https://github.com/just-containers/s6-overlay/blob/master/README.md
+ENV SUPPRESS_NO_CONFIG_WARNING=1 \
+	S6_BEHAVIOUR_IF_STAGE2_FAILS=1 \
+	S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0 \
+	S6_FIX_ATTRS_HIDDEN=1 \
+	S6_KILL_FINISH_MAXTIME=10000 \
+	S6_VERBOSITY=1 \
+	NODE_ENV=production \
+	NPM_BUILD_VERSION="${BUILD_VERSION}" \
+	NPM_BUILD_COMMIT="${BUILD_COMMIT}" \
+	NPM_BUILD_DATE="${BUILD_DATE}" \
+	NODE_OPTIONS="--openssl-legacy-provider"
+
+RUN echo "fs.file-max = 65535" > /etc/sysctl.conf \
+	&& apt-get update \
+	&& apt-get install -y --no-install-recommends jq logrotate \
+	&& apt-get clean \
+	&& rm -rf /var/lib/apt/lists/*
+
+# s6 overlay
+COPY docker/scripts/install-s6 /tmp/install-s6
+RUN /tmp/install-s6 "${TARGETPLATFORM}" && rm -f /tmp/install-s6
+
+EXPOSE 80 81 443
+
+COPY backend /app
+COPY --from=frontend /build/dist /app/frontend
+COPY docker/rootfs /
+
+# Copy test CA cert for use in container and add to trusted certs from a self-signed CA
+COPY --from=testca /home/step/certs/root_ca.crt /etc/ssl/certs/NginxProxyManager.crt
+WORKDIR /etc/ssl/certs
+RUN ln -s NginxProxyManager.crt 1d0e3f10.0 && update-ca-certificates
+
+WORKDIR /app
+RUN yarn install \
+	&& yarn cache clean
+
+# Remove frontend service not required for prod, dev nginx config as well
+RUN rm -rf /etc/s6-overlay/s6-rc.d/user/contents.d/frontend /etc/nginx/conf.d/dev.conf \
+	&& chmod 644 /etc/logrotate.d/nginx-proxy-manager
+
+VOLUME [ "/data" ]
+ENTRYPOINT [ "/init" ]
+
+LABEL org.label-schema.schema-version="1.0" \
+	org.label-schema.license="MIT" \
+	org.label-schema.name="npm-edge" \
+	org.label-schema.description="NPM Edge — Nginx Proxy Manager with Cerulean Authentik forward-auth sign-in" \
+	org.label-schema.url="https://github.com/innotelinc/npm" \
+	org.label-schema.vcs-url="https://github.com/innotelinc/npm.git" \
+	org.label-schema.cmd="docker run --rm -ti innotel/npm-edge:latest"

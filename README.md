@@ -57,7 +57,7 @@ their domains of responsibility:
 | System | Relationship |
 |---|---|
 | **Cerulean** | TrustOps owner: DNS automation and certificate lifecycle; exports/attaches material to NPM |
-| **Authentik** | IdentityOps owner: SSO and user identity for consuming applications; NPM remains the edge, not the identity source |
+| **Authentik** | IdentityOps owner: SSO and user identity for consuming applications — including this admin UI, which signs in through the forward-auth gate; NPM remains the edge, not the identity source and not a user directory |
 | **Cerulean Vault** | SecretOps owner: stores NPM, database, DNS, and certificate integration secrets |
 | **ONYX** | StorageOps owner: optional destination for copied backup archives |
 | **Monarch / Zeus / Signara / Oasis** | Business platforms behind NPM proxy hosts |
@@ -107,10 +107,54 @@ CRON_SCHEDULE=0 2 * * *
 BACKUP_RETENTION=7
 ```
 
-For production, use Cerulean Vault (or another secret manager) to render `.env`; do
-not commit real values. `BACKUP_UI_USER` and `BACKUP_UI_PASSWORD` must both be
+For production, use Cerulean Vault (or another secret manager) to render `.env`;
+do not commit real values. `BACKUP_UI_USER` and `BACKUP_UI_PASSWORD` must both be
 set to enable Basic Authentication. A blank pair leaves the backup UI
 unauthenticated and is suitable only for a private management network.
+
+### Admin UI sign-in (Authentik)
+
+This stack runs the **first-party image** built from `docker/Dockerfile.sso`,
+not the upstream `jc21/nginx-proxy-manager` image. It adds the one thing
+upstream cannot do: the admin UI signs in with the identity the Authentik
+gateway already authenticated, so NPM stops being a second user directory.
+
+```dotenv
+AUTH_SSO_ENABLED=1
+AUTH_SSO_REQUIRED_GROUP=cerulean-platform
+AUTH_SSO_ADMIN_GROUP=cerulean-platform
+AUTH_SERVICE_ACCOUNTS=automation@example.com
+```
+
+Running the stack in a throwaway container to check the matrix yourself:
+
+```bash
+docker run --rm -d --name npm-sso -p 127.0.0.1:22881:81 --tmpfs /etc/letsencrypt \
+  -e DB_SQLITE_FILE=/data/database.sqlite \
+  -e AUTH_SSO_ENABLED=1 -e AUTH_SSO_REQUIRED_GROUP=cerulean-platform \
+  innotel/npm-edge:2.15.1
+# inside → the identity is believed and a token is issued
+docker exec npm-sso curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:81/api/tokens/sso \
+  -H 'X-authentik-email: you@example.com' -H 'X-authentik-groups: cerulean-platform'
+# outside → the same headers are forged, and refused
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:22881/api/tokens/sso \
+  -H 'X-authentik-email: you@example.com' -H 'X-authentik-groups: cerulean-platform'
+```
+
+- The identity headers are believed only when this image's own admin vhost
+  vouches for the request (`X-NPM-Edge: yes`) **and** it arrived over loopback.
+  Any proxy host that fronts the admin UI must therefore forward to
+  `127.0.0.1:<NPM_ADMIN_PORT>`, never to the host's LAN IP — that is what makes
+  the vhost's peer the container's own loopback. Forging the headers, or the
+  verdict header itself, from the LAN port gets a 403.
+- The password form is closed on every gated door. `AUTH_SERVICE_ACCOUNTS`
+  keeps the API working for automation that calls the admin port directly.
+- `BREAKGLASS_LOGIN=1` (set, restart the one service, sign in, unset, restart)
+  re-enables the password form for recovery when Authentik is unreachable.
+
+Leaving `AUTH_SSO_ENABLED` unset changes nothing about how the instance signs
+in. Full detail, including what the user table keeps and why, is in
+[`docs/stack.md`](docs/stack.md#sign-in-the-admin-ui).
 
 ## 🔌 Cerulean integration policy
 

@@ -1,0 +1,26 @@
+# Runtime state is mounted, never baked in — and it is the largest thing in the
+# checkout (MariaDB data, NPM's /data, certificate material, backups). Excluding
+# it keeps the build context small and makes it impossible to ship a deployment's
+# live edge state inside an image.
+data/
+mysql/
+letsencrypt/
+backups/
+
+# Dependencies and build output: the image installs and builds its own.
+node_modules/
+frontend/dist/
+frontend/src/locale/lang/
+docs/node_modules/
+
+# Repo metadata and local noise.
+.git/
+.gitignore
+.githooks/
+.github/
+.build-sso.log
+**/.DS_Store
+
+# The compose files are the deploy surface, not image content.
+docker-compose*.yml
+compose*.yml
