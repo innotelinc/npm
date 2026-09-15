@@ -1,5 +1,6 @@
 # Cerulean's local-BIND integration for the complete NPM Edge component.
-# This file is included by ../cerulean-dns-platform/docker-compose.yml.
+# This file is included by ../cerulean/docker-compose.yml (both repos are
+# checked out under 1-primary/, so the edge sits beside the trust layer).
 # It is intentionally profile-gated: Cerulean enables these services only when
 # BIND_MODE=local and NPM_MODE=local.
 

@@ -23,7 +23,7 @@ material. **Landing page:** [innotelinc.github.io/npm](https://innotelinc.github
 
 **Non-negotiables:** self-hosted · Docker Compose · certificates and edge state
 remain under operator control · backups are logical and restorable · secrets live
-in `.env` or Infisical, never in Git · the backup UI is opt-in protected with
+in `.env` or Cerulean Vault, never in Git · the backup UI is opt-in protected with
 HTTP Basic Authentication.
 
 | Problem | NPM Edge answer |
@@ -58,7 +58,7 @@ their domains of responsibility:
 |---|---|
 | **Cerulean** | TrustOps owner: DNS automation and certificate lifecycle; exports/attaches material to NPM |
 | **Authentik** | IdentityOps owner: SSO and user identity for consuming applications; NPM remains the edge, not the identity source |
-| **Infisical** | SecretOps owner: stores NPM, database, DNS, and certificate integration secrets |
+| **Cerulean Vault** | SecretOps owner: stores NPM, database, DNS, and certificate integration secrets |
 | **ONYX** | StorageOps owner: optional destination for copied backup archives |
 | **Monarch / Zeus / Signara / Oasis** | Business platforms behind NPM proxy hosts |
 
@@ -107,7 +107,7 @@ CRON_SCHEDULE=0 2 * * *
 BACKUP_RETENTION=7
 ```
 
-For production, use Infisical or another secret manager to render `.env`; do
+For production, use Cerulean Vault (or another secret manager) to render `.env`; do
 not commit real values. `BACKUP_UI_USER` and `BACKUP_UI_PASSWORD` must both be
 set to enable Basic Authentication. A blank pair leaves the backup UI
 unauthenticated and is suitable only for a private management network.
@@ -249,7 +249,7 @@ web/landing/             # Innotel portfolio landing page
   them behind a separate access policy and TLS.
 - Treat a restore as a privileged operation. It replaces live edge state and
   controls the Docker daemon through the mounted socket.
-- Prefer Cerulean for DNS and certificate lifecycle automation and Infisical
+- Prefer Cerulean for DNS and certificate lifecycle automation and Cerulean Vault
   for secret storage; do not duplicate those control planes here.
 - Review generated Nginx configuration after importing an archive and keep a
   known-good rollback archive.
@@ -260,7 +260,7 @@ NPM Edge is the ecosystem's **EdgeOps** component in the
 [**Innotel Platform Stack**](https://github.com/innotelinc/innotel-platform-stack):
 the public routing and TLS termination layer consumed by every platform that
 needs an HTTP/S edge. Cerulean owns DNS and trust lifecycle, Authentik owns
-identity, Infisical owns secrets, ONYX owns storage, and NPM owns forwarding,
+identity, Cerulean Vault owns secrets, ONYX owns storage, and NPM owns forwarding,
 edge policy, and recoverable proxy configuration. See
 [docs/stack.md](docs/stack.md) for the full owns/consumes map.
 

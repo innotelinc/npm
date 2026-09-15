@@ -18,7 +18,7 @@ front door for services that need public HTTP/S access.
 | Service | Platform | Why |
 |---|---|---|
 | DNS + certificate lifecycle | Cerulean (TrustOps) | Cerulean automates DNS and TLS and provisions proxy hosts through the NPM API |
-| Secrets | Infisical (SecretOps) | NPM, database, DNS, and certificate integration secrets |
+| Secrets | Cerulean Vault (SecretOps) | NPM, database, DNS, and certificate integration secrets |
 | Identity | Authentik (IdentityOps) | SSO for proxied applications; NPM is the edge, not the identity source |
 | Storage (optional) | ONYX (StorageOps) | Optional destination for copied backup archives |
 
@@ -35,7 +35,7 @@ applications.
   `.env.example`) to provision hosts and attach certificates idempotently.
 - Backup archives may be copied to ONYX; restore is a privileged operation
   that replaces live edge state.
-- Secrets stay in `.env` or Infisical, never in Git.
+- Secrets stay in `.env` or Cerulean Vault, never in Git.
 
 See also the [Innotel Platform Stack](https://github.com/innotelinc/innotel-platform-stack)
 for the canonical architecture definition and the

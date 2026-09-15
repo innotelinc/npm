@@ -28,5 +28,5 @@ features:
   - title: Local-BIND Component
     details: Cerulean starts this complete NPM, MariaDB, and backup-ui stack only when BIND_MODE=local and NPM_MODE=local.
   - title: Platform Ready
-    details: Integrate Cerulean for trust, Infisical for secrets, and any Innotel application behind the edge.
+    details: Integrate Cerulean for trust, Cerulean Vault for secrets, and any Innotel application behind the edge.
 ---

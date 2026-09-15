@@ -8,6 +8,8 @@ companion.
 
 - **Repository:** `innotelinc/npm`
 - **Classification:** EdgeOps
+- **Mesh group:** `1-primary/npm` — the edge is checked out beside Cerulean, the
+  trust layer that issues the certificates it terminates
 - **Primary function:** public HTTP/S routing, TLS termination, access lists,
 and recoverable NPM configuration
 - **License:** MIT
@@ -29,7 +31,7 @@ NPM Edge does not own:
 
 - authoritative DNS zones or DNS records — **Cerulean / TrustOps**;
 - user identity, SSO, MFA, or organizations — **Authentik / IdentityOps**;
-- secrets and private-key custody — **Infisical / SecretOps**;
+- secrets and private-key custody — **Cerulean Vault / SecretOps**;
 - application data behind a proxy host — the consuming platform;
 - long-term object/file storage — **ONYX / StorageOps**;
 - billing, subscriptions, or entitlements — **Magnate / RevenueOps**.
@@ -86,10 +88,10 @@ Applications behind NPM may use Authentik OIDC, LDAP, or another identity
 integration. NPM's own admin accounts are separate operational credentials;
 NPM should not be used as the identity source for the platform ecosystem.
 
-### Infisical — SecretOps
+### Cerulean Vault — SecretOps
 
 Database passwords, NPM API credentials, backup UI credentials, DNS tokens, and
-certificate integration secrets should be rendered from Infisical into the
+certificate integration secrets should be rendered from Cerulean Vault into the
 runtime environment. `.env.example` contains placeholders only.
 
 ### ONYX — StorageOps
