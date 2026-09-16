@@ -181,8 +181,17 @@ services:
     # (SSO_SESSION_REDIS_HOST). A password-protected session store has no
     # business being reachable from the office wifi.
     ports:
-      - "${SSO_SESSION_REDIS_BIND:-127.0.0.1}:${SSO_SESSION_REDIS_PORT:-16380}:6379"
-      - "${SSO_SESSION_REDIS_DOCKER_BIND:-172.17.0.1}:${SSO_SESSION_REDIS_PORT:-16380}:6379"
+    - "${SSO_SESSION_REDIS_BIND:-127.0.0.1}:${SSO_SESSION_REDIS_PORT:-16380}:6379"
+    - "${SSO_SESSION_REDIS_DOCKER_BIND:-172.17.0.1}:${SSO_SESSION_REDIS_PORT:-16380}:6379"
+    # Bind for stacks that live on ANOTHER host. The store is what makes one
+    # login work across every product, so a stack that moved to its own server
+    # still has to reach it: from there, neither this host's loopback nor its
+    # docker0 gateway is reachable, and a gateway that cannot reach the store
+    # exits on "dial tcp 172.17.0.1:16380: connect: connection refused" rather
+    # than degrading. Off by default (the loopback default keeps this host-only
+    # unless an operator opts in), and it stays password-protected by
+    # SSO_SESSION_REDIS_PASSWORD. Set it to this host's LAN IP.
+    - "${SSO_SESSION_REDIS_LAN_BIND:-127.0.0.1}:${SSO_SESSION_REDIS_PORT:-16380}:6379"
 
   cerulean-npm-db:
     image: jc21/mariadb-aria:latest
