@@ -87,15 +87,16 @@ services:
         condition: service_started
       cerulean-sso-sessions:
         condition: service_started
-    # Endpoints are explicit (no OIDC discovery): Authentik here advertises the
-    # *base* URL as its issuer while the app-scoped endpoints live under
-    # /application/o/<slug>/, so go-oidc's issuer check would reject a discovered
-    # document. --skip-oidc-discovery + the four URLs below are the supported way
-    # around that; the issuer must still match the id_token's `iss`.
+    # Endpoints are explicit (no OIDC discovery), and the issuer is the
+    # APP-SCOPED one: that is the value Authentik puts in the id_token's `iss`,
+    # and oauth2-proxy verifies `iss` against --oidc-issuer-url even with
+    # --skip-oidc-discovery. The bare base here made every callback die with
+    # `oidc: id token issued by a different provider` -> HTTP 500 on
+    # /oauth2/callback (reproduced on v7.8.2).
     command:
       - --provider=oidc
       - --skip-oidc-discovery=true
-      - --oidc-issuer-url=${NPM_SSO_AUTHENTIK_BASE:-https://auth.cerulean.innotel.us}/
+      - --oidc-issuer-url=${NPM_SSO_AUTHENTIK_BASE:-https://auth.cerulean.innotel.us}/application/o/${NPM_SSO_APP_SLUG:-npm-edge}/
       - --login-url=${NPM_SSO_AUTHENTIK_BASE:-https://auth.cerulean.innotel.us}/application/o/authorize/
       - --redeem-url=${NPM_SSO_AUTHENTIK_BASE:-https://auth.cerulean.innotel.us}/application/o/token/
       - --profile-url=${NPM_SSO_AUTHENTIK_BASE:-https://auth.cerulean.innotel.us}/application/o/userinfo/
