@@ -8,10 +8,14 @@ letsencrypt/
 backups/
 
 # Dependencies and build output: the image installs and builds its own.
-node_modules/
-frontend/dist/
+# `**/` matters in Docker's matcher — a bare `node_modules/` only matches the
+# context root, so the per-package trees were still being sent and then baked
+# into the runtime image by `COPY backend /app` (673 MB of build context instead
+# of 5 MB, and dependencies the image is about to install anyway).
+**/node_modules/
+**/dist/
 frontend/src/locale/lang/
-docs/node_modules/
+**/node_modules/.cache/
 
 # Repo metadata and local noise.
 .git/

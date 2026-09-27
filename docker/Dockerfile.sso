@@ -8,7 +8,7 @@
 # and the login page.
 #
 # Build (the path compose.cerulean.yml uses):
-#   docker build -f docker/Dockerfile.sso -t innotel/npm-edge:2.15.1 .
+#   docker build -f docker/Dockerfile.sso -t innotel/npm-edge:2.16.0 .
 #
 # Keep the runtime layers byte-compatible with docker/Dockerfile: when the
 # upstream Dockerfile changes, this one has to follow.

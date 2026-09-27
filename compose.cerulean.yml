@@ -10,12 +10,12 @@ services:
     # the Authentik forward-auth sign-in (`backend/lib/sso.js`), which the
     # upstream image does not have. NPM is no longer a second user directory:
     # the admin UI signs in with the identity the edge already authenticated.
-    image: innotel/npm-edge:2.15.1
+    image: innotel/npm-edge:2.16.0
     build:
       context: .
       dockerfile: docker/Dockerfile.sso
       args:
-        BUILD_VERSION: '2.15.1'
+        BUILD_VERSION: '2.16.0'
     container_name: cerulean-npm
     profiles: ["npm"]
     restart: unless-stopped

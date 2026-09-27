@@ -132,7 +132,7 @@ Running the stack in a throwaway container to check the matrix yourself:
 docker run --rm -d --name npm-sso -p 127.0.0.1:22881:81 --tmpfs /etc/letsencrypt \
   -e DB_SQLITE_FILE=/data/database.sqlite \
   -e AUTH_SSO_ENABLED=1 -e AUTH_SSO_REQUIRED_GROUP=cerulean-platform \
-  innotel/npm-edge:2.15.1
+  innotel/npm-edge:2.16.0
 # inside → the identity is believed and a token is issued
 docker exec npm-sso curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:81/api/tokens/sso \
   -H 'X-authentik-email: you@example.com' -H 'X-authentik-groups: cerulean-platform'
