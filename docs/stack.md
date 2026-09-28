@@ -47,6 +47,37 @@ path** — and the gateway then proxies the authenticated request to
 `127.0.0.1:<NPM_ADMIN_PORT>`, setting `X-Forwarded-Email`, `X-Forwarded-User` and
 `X-Forwarded-Groups`.
 
+### Restart the gateway after restarting this container
+
+`cerulean-npm-sso` joins **this** container's network namespace
+(`network_mode: service:cerulean-npm`). Docker resolves that when the *gateway*
+starts, so restarting `cerulean-npm` — which replaces the namespace — strands the
+gateway in the old, now-unreferenced one. It keeps running, keeps its healthcheck
+green, reports no restarts, and logs nothing new, while the live namespace has no
+listener at all:
+
+```
+$ docker exec cerulean-npm curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4180/
+000
+```
+
+Every name that forwards there then answers **502** — `proxy.innotel.us`, and
+`admin.monarch` / `admin.signara` / `admin.zeus` (proxy hosts 7, 11, 12) — which
+reads as the edge being down rather than as one container having lost its
+neighbour. Measured 2026-09-27: `cerulean-npm` started `23:44:28`, `cerulean-npm-sso`
+`23:24:48`, `4180` absent from the NPM namespace, those four names `502`. Nothing
+was misconfigured and no setting had to change:
+
+```bash
+docker restart cerulean-npm-sso        # or: docker compose up -d --force-recreate cerulean-npm-sso
+```
+
+**So the order after any NPM update is: `cerulean-npm`, then
+`cerulean-npm-sso`.** A healthcheck cannot catch this on its own — the gateway's
+`/ping` still answers *inside its own stranded namespace*, which is why the failure
+is invisible from the container and obvious from the container it should be sharing
+a namespace with.
+
 Three settings make that flow *work*, and all three were missing from the first
 version of it — which is why the sign-in had never actually completed. They are
 worth knowing before changing the gateway's flags, because each failure is a
