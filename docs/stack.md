@@ -78,6 +78,35 @@ docker restart cerulean-npm-sso        # or: docker compose up -d --force-recrea
 is invisible from the container and obvious from the container it should be sharing
 a namespace with.
 
+RESTART IS NOT ALWAYS ENOUGH, and an *image* update is the case where it is not.
+Measured 2026-09-28, rebuilding the edge and recreating it (`compose up -d
+--no-deps cerulean-npm`): the recreate gave `cerulean-npm` a **new container id**,
+and `cerulean-npm-sso` was still bound to the old one — so `docker restart
+cerulean-npm-sso` failed outright with
+
+```
+Cannot restart container cerulean-npm-sso: joining network namespace of
+container: No such container: 01e215ff8337...
+```
+
+and the container did not come back at all (`4180 NOT in the netns`, every gated
+name gone from the running list). The rule is therefore about *identity*, not order
+— a **restart** of NPM keeps the id, so restarting the SSO suffices; a **recreate**
+of NPM does not, so the SSO has to be recreated too:
+
+```bash
+docker compose -p proxy -f docker-compose.cerulean.yml up -d --no-deps cerulean-npm
+docker compose -p proxy -f docker-compose.cerulean.yml up -d --no-deps --force-recreate cerulean-npm-sso
+```
+
+(`--force-recreate` rather than a plain `up -d`: the SSO's own config need not have
+changed, so compose would otherwise leave the stranded container alone.) A faster
+signal than waiting for a 502 is asking the namespace itself: `ss -lntp | grep 4180`
+on the host **does not** see this listener — it lives inside NPM's namespace — so
+the check that works is
+`docker exec cerulean-npm sh -c 'netstat -lntp | grep 4180'`, or simply that the four
+gated names answer `302` to Authentik instead of `502`.
+
 Three settings make that flow *work*, and all three were missing from the first
 version of it — which is why the sign-in had never actually completed. They are
 worth knowing before changing the gateway's flags, because each failure is a
