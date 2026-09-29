@@ -11,6 +11,7 @@ NPM Edge packages Nginx Proxy Manager with its MariaDB state store and the
 [![Conformity](https://github.com/innotelinc/npm/actions/workflows/conform.yml/badge.svg)](https://github.com/innotelinc/npm/actions/workflows/conform.yml)
 [![Pages](https://github.com/innotelinc/npm/actions/workflows/pages.yml/badge.svg)](https://github.com/innotelinc/npm/actions/workflows/pages.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Theme: Unity](https://img.shields.io/badge/theme-Unity-6366f1)](https://github.com/innotelinc/innotel-platform-stack/blob/main/standards/unity/README.md)
 
 </div>
 
