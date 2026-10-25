@@ -35,77 +35,52 @@ Upstream Nginx Proxy Manager ships one login — an email and password in its ow
 `user` table — and has no OIDC. That login is a second identity store, so this
 fork's `backend/lib/sso.js` turns a real Authentik OIDC sign-in into the admin
 UI's login: **the admin UI signs in with the identity the platform's SSO gateway
-already established**, and the password grant is refused on every gated door.
-
-The gateway is `oauth2-proxy` (`cerulean-npm-sso` in `compose.cerulean.yml`), an
+already established**, and the password grant is refused on every gated door.The gateway is `oauth2-proxy` (`cerulean-npm-sso` in `compose.cerulean.yml`), an
 OIDC relying party registered in Authentik as the `npm-edge` application. It runs
-in this container's network namespace, so it listens on the container's loopback
-and the proxy host that fronts the admin UI forwards to
-`127.0.0.1:<NPM_SSO_GATEWAY_PORT>`, not to `:81`. The browser completes a real
-code flow against Authentik — **no outpost and no `auth_request` anywhere in the
-path** — and the gateway then proxies the authenticated request to
-`127.0.0.1:<NPM_ADMIN_PORT>`, setting `X-Forwarded-Email`, `X-Forwarded-User` and
-`X-Forwarded-Groups`.
+as an ordinary container on the `npm-gate` network with a **fixed address**
+(`NPM_GATE_IP`, default `172.31.42.10`), and the proxy host that fronts the admin
+UI forwards to that address on `<NPM_SSO_GATEWAY_PORT>` (4180), not to `:81`. The
+admin vhost is told that this one address may vouch for an identity
+(`AUTH_SSO_EDGE_PEERS`), which is what the old loopback rule used to express.
+The browser completes a real code flow against Authentik — **no outpost and no
+`auth_request` anywhere in the path** — and the gateway then proxies the
+authenticated request to `http://cerulean-npm:<NPM_ADMIN_PORT>`, setting
+`X-Forwarded-Email`, `X-Forwarded-User` and `X-Forwarded-Groups`.
 
-### Restart the gateway after restarting this container
+### The gateway does not share this container's namespace
 
-`cerulean-npm-sso` joins **this** container's network namespace
-(`network_mode: service:cerulean-npm`). Docker resolves that when the *gateway*
-starts, so restarting `cerulean-npm` — which replaces the namespace — strands the
-gateway in the old, now-unreferenced one. It keeps running, keeps its healthcheck
-green, reports no restarts, and logs nothing new, while the live namespace has no
-listener at all:
+It used to (`network_mode: service:cerulean-npm`), so that it reached the admin
+vhost over loopback, the only peer the vhost trusted. The cost was a coupling with
+no upside: restarting `cerulean-npm` replaced the namespace under a *running*
+gateway, which stayed up, kept its healthcheck green, logged nothing, and left no
+listener in the live namespace. Every name that forwards there — `proxy.innotel.us`,
+`admin.monarch` — answered **502**, which reads as the edge being down rather than
+as one container having lost its neighbour. Measured 2026-09-27, and again on
+2026-10-25 (`proxy.innotel.us` 27×, `admin.monarch` 26×, every one
+`connect() failed (111: Connection refused)` to `http://127.0.0.1:4180/`), each
+time with nothing misconfigured and no setting to change — only a manual
+`docker restart cerulean-npm-sso`.
 
-```
-$ docker exec cerulean-npm curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4180/
-000
-```
+So the gateway is now a neighbour, and the trust is an address rather than a
+namespace:
 
-Every name that forwards there then answers **502** — `proxy.innotel.us`, and
-`admin.monarch` / `admin.signara` / `admin.zeus` (proxy hosts 7, 11, 12) — which
-reads as the edge being down rather than as one container having lost its
-neighbour. Measured 2026-09-27: `cerulean-npm` started `23:44:28`, `cerulean-npm-sso`
-`23:24:48`, `4180` absent from the NPM namespace, those four names `502`. Nothing
-was misconfigured and no setting had to change:
+- `npm-gate` is a network with a pinned subnet (`NPM_GATE_SUBNET`, default
+  `172.31.42.0/24`), and the gateway a pinned address (`NPM_GATE_IP`).
+- `AUTH_SSO_EDGE_PEERS` names that address. The prepare script renders it into
+  the map in `production.conf.template` that produces `X-NPM-Edge`, beside
+  loopback. One address, never a subnet: "yes" for a range would let any
+  container on it mint identities.
+- The proxy host that fronts the admin UI forwards to the gateway's address, so
+  no restart has to happen in a particular order any more. Restarting either
+  container strands nothing, and `compose up -d` for the edge on its own is
+  enough — including after an image update that recreates it.
 
-```bash
-docker restart cerulean-npm-sso        # or: docker compose up -d --force-recreate cerulean-npm-sso
-```
-
-**So the order after any NPM update is: `cerulean-npm`, then
-`cerulean-npm-sso`.** A healthcheck cannot catch this on its own — the gateway's
-`/ping` still answers *inside its own stranded namespace*, which is why the failure
-is invisible from the container and obvious from the container it should be sharing
-a namespace with.
-
-RESTART IS NOT ALWAYS ENOUGH, and an *image* update is the case where it is not.
-Measured 2026-09-28, rebuilding the edge and recreating it (`compose up -d
---no-deps cerulean-npm`): the recreate gave `cerulean-npm` a **new container id**,
-and `cerulean-npm-sso` was still bound to the old one — so `docker restart
-cerulean-npm-sso` failed outright with
-
-```
-Cannot restart container cerulean-npm-sso: joining network namespace of
-container: No such container: 01e215ff8337...
-```
-
-and the container did not come back at all (`4180 NOT in the netns`, every gated
-name gone from the running list). The rule is therefore about *identity*, not order
-— a **restart** of NPM keeps the id, so restarting the SSO suffices; a **recreate**
-of NPM does not, so the SSO has to be recreated too:
-
-```bash
-docker compose -p proxy -f docker-compose.cerulean.yml up -d --no-deps cerulean-npm
-docker compose -p proxy -f docker-compose.cerulean.yml up -d --no-deps --force-recreate cerulean-npm-sso
-```
-
-(`--force-recreate` rather than a plain `up -d`: the SSO's own config need not have
-changed, so compose would otherwise leave the stranded container alone.) A faster
-signal than waiting for a 502 is asking the namespace itself: `ss -lntp | grep 4180`
-on the host **does not** see this listener — it lives inside NPM's namespace — so
-the check that works is
-`docker exec cerulean-npm sh -c 'netstat -lntp | grep 4180'`, or simply that the four
-gated names answer `302` to Authentik instead of `502`.
+The old symptom is still worth recognising, because the 502 looked like the edge
+being down: `docker exec cerulean-npm sh -c 'netstat -lntp | grep 4180'` found
+nothing while `docker ps` showed the gateway up and healthy. With the gateway off
+the namespace its listener is on its own address instead, so the check is
+`nc -z 172.31.42.10 4180` on the host, and the gated names should answer `302`
+to Authentik rather than `502`.
 
 Three settings make that flow *work*, and all three were missing from the first
 version of it — which is why the sign-in had never actually completed. They are

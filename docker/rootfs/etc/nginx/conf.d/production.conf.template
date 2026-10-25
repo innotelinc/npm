@@ -1,19 +1,23 @@
-# Was this request forwarded by our own edge vhost, or did it arrive straight
-# at the admin port?
+# Was this request forwarded by the SSO gateway, or did it arrive straight at
+# the admin port?
 #
-# The SSO gateway (oauth2-proxy, `cerulean-npm-sso`) runs in this container's
-# network namespace and forwards to 127.0.0.1 (the app's loopback), so an edge
-# request reaches this nginx from the container's own address. The published LAN
-# port, the Docker network and every routable client cannot be loopback. The
-# answer is passed to the app as X-NPM-Edge, where backend/lib/sso.js believes
+# The answer is passed to the app as X-NPM-Edge, and backend/lib/sso.js believes
 # the gateway's identity headers (X-Forwarded-Email/User/Groups) only when it
 # reads "yes". Set here rather than left to the caller: a client that sends its
 # own X-NPM-Edge is overwritten, which is what makes it a proof.
+#
+# The peers that may vouch are addresses, never names or ranges: the gateway is
+# a single container, and "yes" for a whole subnet would let any container on it
+# mint identities. Loopback is the gateway-in-this-namespace layout (it forwards
+# to 127.0.0.1:{{NPM_ADMIN_PORT}}). The rest of this map is rendered from
+# AUTH_SSO_EDGE_PEERS, the gateway's own address when it runs as a neighbour
+# instead — see docs/stack.md.
 map $remote_addr $npm_edge_request {
 	default            "no";
 	127.0.0.1          "yes";
 	"::1"              "yes";
 	"::ffff:127.0.0.1" "yes";
+{{EDGE_PEERS}}
 }
 
 # Admin Interface

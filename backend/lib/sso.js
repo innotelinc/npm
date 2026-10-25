@@ -15,23 +15,30 @@
  *     (`docker/rootfs/etc/nginx/conf.d/production.conf.template`). That vhost is
  *     the only thing that can reach the backend, and it sets the header on every
  *     `/api/` request from the peer address it saw — so a caller that sends its
- *     own `X-NPM-Edge` is overwritten. It says "yes" only when the peer was the
- *     container's own loopback, which is what a fronting proxy host looks like
- *     (they forward to `127.0.0.1`, never to the host's LAN IP).
+ *     own `X-NPM-Edge` is overwritten. It says "yes" only for the peers listed in
+ *     that vhost's map: the container's own loopback, and the SSO gateway's pinned
+ *     address (`AUTH_SSO_EDGE_PEERS`, rendered at start-up). Read the map as "the
+ *     only addresses a fronting gateway can arrive from" rather than as a trust in
+ *     the subnet — it never holds a range.
  *   - A loopback connection to the backend itself. The backend listens on
  *     0.0.0.0, so the nginx layer above is not the only way in; a container on
  *     the same Docker network could reach it directly and set any header it
  *     likes. Only nginx's own hop is loopback.
  *
- * The gateway shares this container's network namespace, so the proxy host that
- * fronts it forwards to `127.0.0.1` — the gateway's own address, and a loopback
- * peer from this nginx's point of view. Its identity headers are relayed by the
- * proxy include (`conf.d/include/proxy.conf`); the gateway is the only thing on
- * loopback that a fronting host can point at, so by the time the backend sees
+ * The gateway runs on its own address (`npm-gate`, `NPM_GATE_IP`), and the proxy
+ * host that fronts it forwards there, so the admin vhost sees the gateway — not
+ * the browser — as its peer. Its identity headers are relayed by the proxy
+ * include (`conf.d/include/proxy.conf`); the gateway is the only address the
+ * vhost answers "yes" for besides loopback, so by the time the backend sees
  * these headers the browser has completed the OIDC code flow. A client that
  * never passed the gateway fails both facts above: the fronting host refuses it
  * (redirect to Authentik), and hitting the published LAN port yields "no" from
  * the vhost — forging `X-Forwarded-*` (or `X-NPM-Edge` itself) gets nothing.
+ *
+ * (The gateway used to share this container's network namespace and arrive over
+ * loopback. That worked, and cost the edge a hard restart ordering: a restart of
+ * this container left the gateway listening in a namespace nobody could reach,
+ * so every gated name answered 502 until it was restarted by hand.)
  *
  * Then:
  *

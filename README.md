@@ -133,7 +133,7 @@ Running the stack in a throwaway container to check the matrix yourself:
 docker run --rm -d --name npm-sso -p 127.0.0.1:22881:81 --tmpfs /etc/letsencrypt \
   -e DB_SQLITE_FILE=/data/database.sqlite \
   -e AUTH_SSO_ENABLED=1 -e AUTH_SSO_REQUIRED_GROUP=cerulean-platform \
-  innotel/npm-edge:2.16.0
+  innotel/npm-edge:2.16.1
 # inside → the identity is believed and a token is issued
 docker exec npm-sso curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:81/api/tokens/sso \
   -H 'X-authentik-email: you@example.com' -H 'X-authentik-groups: cerulean-platform'
@@ -144,10 +144,11 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:22881/api/toke
 
 - The identity headers are believed only when this image's own admin vhost
   vouches for the request (`X-NPM-Edge: yes`) **and** it arrived over loopback.
-  Any proxy host that fronts the admin UI must therefore forward to
-  `127.0.0.1:<NPM_ADMIN_PORT>`, never to the host's LAN IP — that is what makes
-  the vhost's peer the container's own loopback. Forging the headers, or the
-  verdict header itself, from the LAN port gets a 403.
+  The vhost says "yes" for loopback and for the addresses in
+  `AUTH_SSO_EDGE_PEERS` — in the Cerulean stack, the SSO gateway's one pinned
+  address (`npm-gate`, `NPM_GATE_IP`). Any proxy host that fronts the admin UI
+  must therefore forward to the gateway, never to the host's LAN IP. Forging the
+  headers, or the verdict header itself, from the LAN port gets a 403.
 - The password form is closed on every gated door. `AUTH_SERVICE_ACCOUNTS`
   keeps the API working for automation that calls the admin port directly.
 - `BREAKGLASS_LOGIN=1` (set, restart the one service, sign in, unset, restart)
